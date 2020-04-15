@@ -1,0 +1,11 @@
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: custom-domain-operator
+subjects:
+- kind: ServiceAccount
+  name: custom-domain-operator
+roleRef:
+  kind: Role
+  name: custom-domain-operator
+  apiGroup: rbac.authorization.k8s.io

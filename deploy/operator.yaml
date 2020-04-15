@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: custom-domain-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: custom-domain-operator
+  template:
+    metadata:
+      labels:
+        name: custom-domain-operator
+    spec:
+      serviceAccountName: custom-domain-operator
+      containers:
+        - name: custom-domain-operator
+          image: dustman9000/custom-domain-operator:latest
+          command:
+          - custom-domain-operator
+          imagePullPolicy: Always
+          env:
+            - name: WATCH_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OPERATOR_NAME
+              value: "custom-domain-operator"
