@@ -15,9 +15,12 @@ spec:
       serviceAccountName: custom-domain-operator
       containers:
         - name: custom-domain-operator
-          image: dustman9000/custom-domain-operator:latest
+          image: dustman9000/custom-domain-operator:0.0.1
           command:
           - custom-domain-operator
+          args:
+            - "--zap-level=debug"
+            - "--zap-encoder=console"
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE

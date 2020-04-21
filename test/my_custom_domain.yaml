@@ -1,0 +1,6 @@
+apiVersion: managed.openshift.io/v1alpha1
+kind: CustomDomain
+metadata:
+  name: app1
+spec:
+  domain: app1.fidata.io

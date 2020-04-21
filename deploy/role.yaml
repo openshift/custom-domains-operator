@@ -67,7 +67,7 @@ rules:
   verbs:
   - get
 - apiGroups:
-  - custom-domain.managed.openshift.io
+  - managed.openshift.io
   resources:
   - '*'
   verbs:

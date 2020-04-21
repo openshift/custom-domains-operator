@@ -100,6 +100,8 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		return reconcile.Result{}, err
 	}
 
+	reqLogger.Info("Got here!")
+
 	// Define a new Pod object
 	pod := newPodForCR(instance)
 
