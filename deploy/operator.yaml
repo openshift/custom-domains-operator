@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: custom-domain-operator
+  namespace: openshift-operators
 spec:
   replicas: 1
   selector:
@@ -15,7 +16,7 @@ spec:
       serviceAccountName: custom-domain-operator
       containers:
         - name: custom-domain-operator
-          image: dustman9000/custom-domain-operator:0.0.1
+          image: dustman9000/custom-domain-operator:0.0.3
           command:
           - custom-domain-operator
           args:
@@ -24,9 +25,7 @@ spec:
           imagePullPolicy: Always
           env:
             - name: WATCH_NAMESPACE
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.namespace
+              value: ""
             - name: POD_NAME
               valueFrom:
                 fieldRef:

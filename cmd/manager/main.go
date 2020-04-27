@@ -31,6 +31,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	routev1 "github.com/openshift/api/route/v1"
 )
 
 // Change below variables to serve metrics on different host or port.
@@ -122,6 +123,12 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Adding the routev1
+	if err := routev1.AddToScheme(mgr.GetScheme()); err != nil {
+		log.Error(err, "")
+		os.Exit(1)
+	}
+
 	// Setup all Controllers
 	if err := controller.AddToManager(mgr); err != nil {
 		log.Error(err, "")
@@ -197,10 +204,8 @@ func serveCRMetrics(cfg *rest.Config, operatorNs string) error {
 
 	// The metrics will be generated from the namespaces which are returned here.
 	// NOTE that passing nil or an empty list of namespaces in GenerateAndServeCRMetrics will result in an error.
-	ns, err := kubemetrics.GetNamespacesForMetrics(operatorNs)
-	if err != nil {
-		return err
-	}
+	// Due to https://github.com/operator-framework/operator-sdk/issues/2707
+	ns := []string{""}
 
 	// Generate and serve custom resource specific metrics.
 	err = kubemetrics.GenerateAndServeCRMetrics(cfg, ns, filteredGVK, metricsHost, operatorMetricsPort)

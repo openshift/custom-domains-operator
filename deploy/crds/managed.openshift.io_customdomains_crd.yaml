@@ -9,7 +9,7 @@ spec:
     listKind: CustomDomainList
     plural: customdomains
     singular: customdomain
-  scope: Namespaced
+  scope: Cluster
   subresources:
     status: {}
   validation:

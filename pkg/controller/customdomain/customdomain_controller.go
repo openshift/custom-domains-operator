@@ -2,8 +2,11 @@ package customdomain
 
 import (
 	"context"
+	"fmt"
 
+	"github.com/go-logr/logr"
 	customdomainv1alpha1 "github.com/dustman9000/custom-domain-operator/pkg/apis/customdomain/v1alpha1"
+	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -11,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -75,10 +77,10 @@ type ReconcileCustomDomain struct {
 	scheme *runtime.Scheme
 }
 
+const customDomainFinalizer = "finalizer.customdomain.managed.openshift.io"
+
 // Reconcile reads that state of the cluster for a CustomDomain object and makes changes based on the state read
 // and what is in the CustomDomain.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  This example creates
-// a Pod as an example
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
@@ -100,56 +102,166 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		return reconcile.Result{}, err
 	}
 
-	reqLogger.Info("Got here!")
+	// Check if the CustomDomain instance is marked to be deleted, which is
+	// indicated by the deletion timestamp being set.
+	isCustomDomainMarkedToBeDeleted := instance.GetDeletionTimestamp() != nil
+	if isCustomDomainMarkedToBeDeleted {
+		if contains(instance.GetFinalizers(), customDomainFinalizer) {
+			// Run finalization logic for customDomainFinalizer. If the
+			// finalization logic fails, don't remove the finalizer so
+			// that we can retry during the next reconciliation.
+			if err := r.finalizeCustomDomain(reqLogger, instance); err != nil {
+				return reconcile.Result{}, err
+			}
 
-	// Define a new Pod object
-	pod := newPodForCR(instance)
-
-	// Set CustomDomain instance as the owner and controller
-	if err := controllerutil.SetControllerReference(instance, pod, r.scheme); err != nil {
-		return reconcile.Result{}, err
+			// Remove customDomainFinalizer. Once all finalizers have been
+			// removed, the object will be deleted.
+			instance.SetFinalizers(remove(instance.GetFinalizers(), customDomainFinalizer))
+			err := r.client.Update(context.TODO(), instance)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+		}
+		return reconcile.Result{}, nil
 	}
 
-	// Check if this Pod already exists
-	found := &corev1.Pod{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{Name: pod.Name, Namespace: pod.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		reqLogger.Info("Creating a new Pod", "Pod.Namespace", pod.Namespace, "Pod.Name", pod.Name)
-		err = r.client.Create(context.TODO(), pod)
-		if err != nil {
+	// Add finalizer for this CR
+	if !contains(instance.GetFinalizers(), customDomainFinalizer) {
+		if err := r.addFinalizer(reqLogger, instance); err != nil {
 			return reconcile.Result{}, err
 		}
-
-		// Pod created successfully - don't requeue
-		return reconcile.Result{}, nil
-	} else if err != nil {
-		return reconcile.Result{}, err
 	}
 
-	// Pod already exists - don't requeue
-	reqLogger.Info("Skip reconcile: Pod already exists", "Pod.Namespace", found.Namespace, "Pod.Name", found.Name)
+	systemRoute := &routev1.Route{}
+	for n, ns := range systemRoutes {
+		err = r.client.Get(context.TODO(), types.NamespacedName{
+			Name:      n,
+			Namespace: ns,
+		}, systemRoute)
+		if err != nil {
+			reqLogger.Info(fmt.Sprintf("Error getting route %v in namespace %v", n, ns), "Error", err.Error())
+			// Error reading the object - requeue the request.
+			return reconcile.Result{}, err
+		}
+		newRoute := duplicateRoute(systemRoute, instance)
+		// Check if route exists
+		existingRoute := &routev1.Route{}
+		err := r.client.Get(context.TODO(), types.NamespacedName{
+			Name:      newRoute.Name,
+			Namespace: newRoute.Namespace,
+		}, existingRoute)
+
+		if err != nil {
+			// Create or Update route
+			reqLogger.Info(fmt.Sprintf("Creating duplicate system Route %v with host %v", systemRoute.Name, systemRoute.Spec.Host))
+			_, err = createRoute(reqLogger, context.TODO(), r.client, newRoute)
+			if err != nil {
+				log.Info("Error creating route", "Error", err.Error())
+				return reconcile.Result{}, err
+			}
+		} else {
+			reqLogger.Info(fmt.Sprintf("Dupicate system Route %v with host %v already exists", systemRoute.Name, systemRoute.Spec.Host))
+		}
+
+	}
 	return reconcile.Result{}, nil
 }
 
-// newPodForCR returns a busybox pod with the same name/namespace as the cr
-func newPodForCR(cr *customdomainv1alpha1.CustomDomain) *corev1.Pod {
-	labels := map[string]string{
-		"app": cr.Name,
+// finalizeCustomDomain cleans up once a CustomDomain CR is deleted
+func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, m *customdomainv1alpha1.CustomDomain) error {
+	// Delete all routes created by this operator
+	routeList := &routev1.RouteList{}
+	listOpts := []client.ListOption{
+		client.MatchingLabels(labelsForRoute(m.ObjectMeta.Name)),
 	}
-	return &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      cr.Name + "-pod",
-			Namespace: cr.Namespace,
-			Labels:    labels,
-		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:    "busybox",
-					Image:   "busybox",
-					Command: []string{"sleep", "3600"},
-				},
-			},
-		},
+	ctx := context.TODO()
+	err := r.client.List(ctx, routeList, listOpts...)
+	for _, rt := range routeList.Items {
+		err = r.client.Delete(ctx, &rt, client.GracePeriodSeconds(5))
+		if err != nil {
+			reqLogger.Error(err, "Failed to call client.Delete() for " + rt.ObjectMeta.Name)
+			return err
+		}
+    }
+	if err != nil {
+		reqLogger.Error(err, "Failed to call client.List()")
+		return err
 	}
+	reqLogger.Info("Successfully finalized customdomain")
+	return nil
+}
+
+// addFinalizer is a function that adds a finalizer for the CustomDomain CR
+func (r *ReconcileCustomDomain) addFinalizer(reqLogger logr.Logger, m *customdomainv1alpha1.CustomDomain) error {
+	reqLogger.Info("Adding Finalizer for the CustomDomain")
+	m.SetFinalizers(append(m.GetFinalizers(), customDomainFinalizer))
+
+	// Update CR
+	err := r.client.Update(context.TODO(), m)
+	if err != nil {
+		reqLogger.Error(err, "Failed to update CustomDomain with finalizer")
+		return err
+	}
+	return nil
+}
+
+// contains is a helper function for finalizer
+func contains(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// remove is a helper function for finalizer
+func remove(list []string, s string) []string {
+	for i, v := range list {
+		if v == s {
+			list = append(list[:i], list[i+1:]...)
+		}
+	}
+	return list
+}
+
+// createRoute is a function which creates the route
+func createRoute(reqLogger logr.Logger, ctx context.Context, client client.Client, r *routev1.Route) (*routev1.Route, error) {
+	if err := client.Create(ctx, r); err != nil {
+		if err != nil {
+			if !errors.IsAlreadyExists(err) {
+				return nil, err
+			}
+			reqLogger.Info("Route object already exists", "Route.Name", r.Name, "Route.Namespace", r.Namespace)
+			return r, nil
+		}
+	}
+	reqLogger.Info("Route object Created", "Route.Name", r.Name, "Route.Namespace", r.Namespace)
+	return r, nil
+}
+
+// duplicateRoute creates a route to proxy to an existing system route
+func duplicateRoute(systemRoute *routev1.Route, instance *customdomainv1alpha1.CustomDomain) *routev1.Route {
+	labels := labelsForRoute(instance.ObjectMeta.Name)
+	for k, v := range systemRoute.ObjectMeta.Labels {
+		labels[k] = v
+	}
+	newRoute := &routev1.Route{}
+	newRoute.TypeMeta = metav1.TypeMeta{
+		Kind:       "Route",
+		APIVersion: "route.openshift.io/v1",
+	}
+	newRoute.ObjectMeta = metav1.ObjectMeta{
+		Name:      systemRoute.ObjectMeta.Name + "-" + instance.ObjectMeta.Name,
+		Namespace: systemRoute.ObjectMeta.Namespace,
+		Labels:    labels,
+	}
+	newRoute.Spec = systemRoute.Spec
+	newRoute.Spec.Host = systemRoute.ObjectMeta.Name + "." + instance.Spec.Domain
+	return newRoute
+}
+
+// labelsForRoute creates a simple set of labels for all routes.
+func labelsForRoute(name string) map[string]string {
+	return map[string]string{"custom-domain-operator-owner": name}
 }
