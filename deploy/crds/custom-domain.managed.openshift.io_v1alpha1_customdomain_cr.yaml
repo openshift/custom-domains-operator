@@ -1,7 +1,0 @@
-apiVersion: custom-domain.managed.openshift.io/v1alpha1
-kind: CustomDomain
-metadata:
-  name: example-customdomain
-spec:
-  # Add fields here
-  size: 3

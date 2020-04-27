@@ -28,7 +28,7 @@ type CustomDomainStatus struct {
 
 // CustomDomain is the Schema for the customdomains API
 // +kubebuilder:subresource:status
-// +kubebuilder:resource:path=customdomains,scope=Namespaced
+// +kubebuilder:resource:path=customdomains,scope=Cluster
 type CustomDomain struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
