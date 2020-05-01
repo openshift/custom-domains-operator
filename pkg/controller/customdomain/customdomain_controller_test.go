@@ -9,6 +9,7 @@ import (
 	customdomainv1alpha1 "github.com/dustman9000/custom-domain-operator/pkg/apis/customdomain/v1alpha1"
 
 	routev1 "github.com/openshift/api/route/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -29,6 +30,8 @@ func TestCustomDomainController(t *testing.T) {
 		namespace  = "default"
 		domain     = "apps.foo.com"
 		basedomain = "apps.openshiftapps.com"
+		secretName = "tls"
+		secretData = "DEADBEEF"
 	)
 
 	// A CustomDomain resource with metadata and spec.
@@ -38,13 +41,30 @@ func TestCustomDomainController(t *testing.T) {
 			Namespace: namespace,
 		},
 		Spec: customdomainv1alpha1.CustomDomainSpec{
-			Domain: domain, // Set the desired domain
+			Domain: domain,
+			TLSSecret: corev1.ObjectReference{
+				Name:      secretName,
+				Namespace: namespace,
+			},
 		},
 	}
+
+	// A Secret of type kubernetes.io/tls
+	tlsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      secretName,
+			Namespace: namespace,
+		},
+		Data: make(map[string][]byte),
+		Type: corev1.SecretTypeTLS,
+	}
+	tlsSecret.Data[corev1.TLSPrivateKeyKey] = []byte(secretData)
+	tlsSecret.Data[corev1.TLSCertKey] = []byte(secretData)
 
 	// Objects to track in the fake client.
 	objs := []runtime.Object{
 		customdomain,
+		tlsSecret,
 	}
 
 	for n, ns := range systemRoutes {
@@ -99,6 +119,10 @@ func TestCustomDomainController(t *testing.T) {
 	// Create the expected routes in namespace and collect their names to check
 	// later.
 	routeLabels := labelsForRoute(name)
+	tlsConfig := &routev1.TLSConfig{
+		Key: secretData,
+		Certificate: secretData,
+	}
 	for n, ns := range systemRoutes {
 		actualRoute := &routev1.Route{}
 		expectedRoute := &routev1.Route{
@@ -109,6 +133,7 @@ func TestCustomDomainController(t *testing.T) {
 			},
 			Spec: routev1.RouteSpec{
 				Host: n + "." + domain,
+				TLS:  tlsConfig,
 			},
 		}
 		err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -133,6 +158,10 @@ func TestCustomDomainController(t *testing.T) {
 		}
 		if actualRoute.Spec.Host != expectedRoute.Spec.Host {
 			t.Error(fmt.Sprintf("actual route host (%v) does not match expected route host (%v)", actualRoute.Spec.Host, expectedRoute.Spec.Host))
+			continue
+		}
+		if !reflect.DeepEqual(actualRoute.Spec.TLS, expectedRoute.Spec.TLS) {
+			t.Error("actual route tls config does not match expected route tls config")
 			continue
 		}
 	}

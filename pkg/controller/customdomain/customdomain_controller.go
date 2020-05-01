@@ -132,6 +132,21 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		}
 	}
 
+	// look up secret
+	tlsSecret := &corev1.Secret{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Namespace: instance.Spec.TLSSecret.Namespace,
+		Name:      instance.Spec.TLSSecret.Name,
+	}, tlsSecret)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// continue if secret does not exist yet
+			reqLogger.Info(fmt.Sprintf("Secret (%v) does not exist!", instance.Spec.TLSSecret.Name))
+		} else {
+			return reconcile.Result{}, err
+		}
+	}
+
 	systemRoute := &routev1.Route{}
 	for n, ns := range systemRoutes {
 		err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -143,7 +158,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			// Error reading the object - requeue the request.
 			return reconcile.Result{}, err
 		}
-		newRoute := duplicateRoute(systemRoute, instance)
+		newRoute := duplicateRoute(systemRoute, tlsSecret, instance)
 		// Check if route exists
 		existingRoute := &routev1.Route{}
 		err := r.client.Get(context.TODO(), types.NamespacedName{
@@ -240,7 +255,7 @@ func createRoute(reqLogger logr.Logger, ctx context.Context, client client.Clien
 }
 
 // duplicateRoute creates a route to proxy to an existing system route
-func duplicateRoute(systemRoute *routev1.Route, instance *customdomainv1alpha1.CustomDomain) *routev1.Route {
+func duplicateRoute(systemRoute *routev1.Route, tlsSecret *corev1.Secret, instance *customdomainv1alpha1.CustomDomain) *routev1.Route {
 	labels := labelsForRoute(instance.ObjectMeta.Name)
 	for k, v := range systemRoute.ObjectMeta.Labels {
 		labels[k] = v
@@ -255,9 +270,28 @@ func duplicateRoute(systemRoute *routev1.Route, instance *customdomainv1alpha1.C
 		Namespace: systemRoute.ObjectMeta.Namespace,
 		Labels:    labels,
 	}
+	tlsConfig := createTlsConfig(tlsSecret)
 	newRoute.Spec = systemRoute.Spec
 	newRoute.Spec.Host = systemRoute.ObjectMeta.Name + "." + instance.Spec.Domain
+	newRoute.Spec.TLS = tlsConfig
 	return newRoute
+}
+
+// createTlsConfig creates a new TLSConfig object
+func createTlsConfig(tlsSecret *corev1.Secret) *routev1.TLSConfig {
+	newTlsConfig := &routev1.TLSConfig{}
+	// Secret must be of kubernetes.io/tls type that contains a tls.key and tls.crt
+	if tlsSecret.Data != nil && tlsSecret.Type == corev1.SecretTypeTLS {
+		keyData, ok := tlsSecret.Data[corev1.TLSPrivateKeyKey]
+		if ok {
+			newTlsConfig.Key = string(keyData)
+		}
+		crtData, ok := tlsSecret.Data[corev1.TLSCertKey]
+		if ok {
+			newTlsConfig.Certificate = string(crtData)
+		}
+	}
+	return newTlsConfig
 }
 
 // labelsForRoute creates a simple set of labels for all routes.

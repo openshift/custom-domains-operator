@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
@@ -14,7 +15,10 @@ type CustomDomainSpec struct {
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
 
 	// This field can be used to define the custom domain
-	Domain string `json:"domain,omitempty"`
+	Domain string `json:"domain"`
+
+	// TLSSecret points to the secret where the TLS secret should be stored once generated.
+	TLSSecret corev1.ObjectReference `json:"tlsSecret"`
 }
 
 // CustomDomainStatus defines the observed state of CustomDomain
