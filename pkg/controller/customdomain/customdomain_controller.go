@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/go-logr/logr"
 	customdomainv1alpha1 "github.com/dustman9000/custom-domain-operator/pkg/apis/customdomain/v1alpha1"
+	"github.com/go-logr/logr"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -160,9 +160,8 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 				return reconcile.Result{}, err
 			}
 		} else {
-			reqLogger.Info(fmt.Sprintf("Dupicate system Route %v with host %v already exists", systemRoute.Name, systemRoute.Spec.Host))
+			reqLogger.Info(fmt.Sprintf("Dupicate system Route %v with host %v already exists", newRoute.Name, newRoute.Spec.Host))
 		}
-
 	}
 	return reconcile.Result{}, nil
 }
@@ -179,10 +178,10 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, m *c
 	for _, rt := range routeList.Items {
 		err = r.client.Delete(ctx, &rt, client.GracePeriodSeconds(5))
 		if err != nil {
-			reqLogger.Error(err, "Failed to call client.Delete() for " + rt.ObjectMeta.Name)
+			reqLogger.Error(err, fmt.Sprintf("Failed to call client.Delete() for %v", rt.ObjectMeta.Name))
 			return err
 		}
-    }
+	}
 	if err != nil {
 		reqLogger.Error(err, "Failed to call client.List()")
 		return err
@@ -232,11 +231,11 @@ func createRoute(reqLogger logr.Logger, ctx context.Context, client client.Clien
 			if !errors.IsAlreadyExists(err) {
 				return nil, err
 			}
-			reqLogger.Info("Route object already exists", "Route.Name", r.Name, "Route.Namespace", r.Namespace)
+			reqLogger.Info(fmt.Sprintf("Route object already exists (%v, %v)", r.Name, r.Namespace))
 			return r, nil
 		}
 	}
-	reqLogger.Info("Route object Created", "Route.Name", r.Name, "Route.Namespace", r.Namespace)
+	reqLogger.Info(fmt.Sprintf("Route object created (%v, %v)", r.Name, r.Namespace))
 	return r, nil
 }
 
