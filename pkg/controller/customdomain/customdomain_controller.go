@@ -3,6 +3,7 @@ package customdomain
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	customdomainv1alpha1 "github.com/dustman9000/custom-domain-operator/pkg/apis/customdomain/v1alpha1"
 	"github.com/go-logr/logr"
@@ -154,7 +155,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			Namespace: ns,
 		}, systemRoute)
 		if err != nil {
-			reqLogger.Info(fmt.Sprintf("Error getting route %v in namespace %v", n, ns), "Error", err.Error())
+			reqLogger.Error(err, fmt.Sprintf("Error getting route %v in namespace %v", n, ns))
 			// Error reading the object - requeue the request.
 			return reconcile.Result{}, err
 		}
@@ -167,15 +168,27 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		}, existingRoute)
 
 		if err != nil {
-			// Create or Update route
-			reqLogger.Info(fmt.Sprintf("Creating duplicate system Route %v with host %v", systemRoute.Name, systemRoute.Spec.Host))
+			// Create route
+			reqLogger.Info(fmt.Sprintf("Creating new Route %v with host %v", newRoute.Name, newRoute.Spec.Host))
 			_, err = createRoute(reqLogger, context.TODO(), r.client, newRoute)
 			if err != nil {
-				log.Info("Error creating route", "Error", err.Error())
+				log.Error(err, "Error creating route")
 				return reconcile.Result{}, err
 			}
 		} else {
-			reqLogger.Info(fmt.Sprintf("Dupicate system Route %v with host %v already exists", newRoute.Name, newRoute.Spec.Host))
+			if !reflect.DeepEqual(existingRoute.Spec.TLS, newRoute.Spec.TLS) ||
+				existingRoute.Spec.Host != newRoute.Spec.Host {
+				// Update existingRoute with TLS and domain fields from newRoute
+				existingRoute.Spec.TLS = newRoute.Spec.TLS
+				existingRoute.Spec.Host = newRoute.Spec.Host
+				reqLogger.Info(fmt.Sprintf("Updating Route %v with host %v", newRoute.Name, newRoute.Spec.Host))
+				err = r.client.Update(context.TODO(), existingRoute)
+				if err != nil {
+					log.Error(err, "Error updating route")
+				}
+			} else {
+				reqLogger.Info(fmt.Sprintf("Route %v with host %v already exists", newRoute.Name, newRoute.Spec.Host))
+			}
 		}
 	}
 	return reconcile.Result{}, nil

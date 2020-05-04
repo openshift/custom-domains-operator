@@ -3,4 +3,7 @@ kind: CustomDomain
 metadata:
   name: acme
 spec:
-  domain: app1.fidata.io
+  domain: apps.fidata.io
+  tlsSecret:
+    name: acme-tls
+    namespace: acme-apps
