@@ -16,7 +16,7 @@ spec:
       serviceAccountName: custom-domain-operator
       containers:
         - name: custom-domain-operator
-          image: dustman9000/custom-domain-operator:0.0.3
+          image: REPLACE_ME/custom-domains-operator
           command:
           - custom-domain-operator
           args:

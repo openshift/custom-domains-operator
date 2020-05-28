@@ -120,7 +120,7 @@ func TestCustomDomainController(t *testing.T) {
 	// later.
 	routeLabels := labelsForRoute(name)
 	tlsConfig := &routev1.TLSConfig{
-		Key: secretData,
+		Key:         secretData,
 		Certificate: secretData,
 	}
 	for n, ns := range systemRoutes {

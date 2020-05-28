@@ -1,9 +1,9 @@
 apiVersion: managed.openshift.io/v1alpha1
 kind: CustomDomain
 metadata:
-  name: acme
+  name: cluster
 spec:
-  domain: apps.fidata.io
+  domain: apps.acme.io
   tlsSecret:
     name: acme-tls
     namespace: acme-apps
