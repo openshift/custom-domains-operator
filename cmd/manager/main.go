@@ -17,6 +17,7 @@ import (
 	"github.com/dustman9000/custom-domain-operator/pkg/controller"
 	"github.com/dustman9000/custom-domain-operator/version"
 
+	routev1 "github.com/openshift/api/route/v1"
 	"github.com/operator-framework/operator-sdk/pkg/k8sutil"
 	kubemetrics "github.com/operator-framework/operator-sdk/pkg/kube-metrics"
 	"github.com/operator-framework/operator-sdk/pkg/leader"
@@ -31,7 +32,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
-	routev1 "github.com/openshift/api/route/v1"
 )
 
 // Change below variables to serve metrics on different host or port.

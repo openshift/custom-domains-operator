@@ -2,10 +2,6 @@
 
 This allows for a custom domain and certificate to be installed as a day-2 operation.
 
-## Getting Started
-
-These instructions will get you a copy of the project up and running on your local machine for development and testing purposes. See deployment for notes on how to deploy the project on a live system.
-
 ### Prerequisites
 
 What things you need to install the software and how to install them
@@ -24,15 +20,42 @@ sudo mv operator-sdk-v0.16.0-x86_64-apple-darwin /usr/local/bin/operator-sdk
 sudo chmod a+x /usr/local/bin/operator-sdk
 ```
 
-### Deploying
+### Building And Deploying And Testing
 
-#### Build And Push Docker Image
+#### Setup
+Create Custom Resource Definition (CRD)
 ```
-operator-sdk build dustman9000/custom-domain-operator
-docker push dustman9000/custom-domain-operator
+oc apply -f deploy/crds/managed.openshift.io_customdomains_crd.yaml
 ```
 
-#### Deploy
+#### Run locally outside of cluster
 ```
+operator-sdk run --local --watch-namespace ''
+```
+
+#### Build and Deploy To Cluster
+Choose public container registry e.g. 'quay.io/acme'.
+Build and push the image, then update the operator deployment manifest.
+```
+operator-sdk build quay.io/acme/custom-domain-operator
+docker push quay.io/acme/custom-domain-operator
+sed -i 's|REPLACE_ME|quay.io/acme|g' deploy/operator.yaml
 oc apply -f deploy/operator.yaml
+```
+
+#### Add Secrets and CustomDomain CRD
+```
+oc new-project acme-apps
+oc -n acme-apps create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
+oc apply -f <(echo "
+apiVersion: managed.openshift.io/v1alpha1
+kind: CustomDomain
+metadata:
+  name: cluster
+spec:
+  domain: apps.acme.io
+  tlsSecret:
+    name: acme-tls
+    namespace: acme-apps
+")
 ```
