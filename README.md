@@ -30,7 +30,7 @@ oc apply -f deploy/crds/managed.openshift.io_customdomains_crd.yaml
 
 #### Run locally outside of cluster
 ```
-operator-sdk run --local --watch-namespace ''
+operator-sdk run --local --namespace ''
 ```
 
 #### Build and Deploy To Cluster
