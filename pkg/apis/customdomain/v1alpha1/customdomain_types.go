@@ -17,8 +17,8 @@ type CustomDomainSpec struct {
 	// This field can be used to define the custom domain
 	Domain string `json:"domain"`
 
-	// TLSSecret points to the secret where the TLS secret should be stored once generated.
-	TLSSecret corev1.ObjectReference `json:"tlsSecret"`
+	// TLSSecret points to the custom TLS secret in the openshift-ingress namespace
+	TLSSecret string `json:"tlsSecret"`
 }
 
 // CustomDomainStatus defines the observed state of CustomDomain
@@ -26,7 +26,24 @@ type CustomDomainStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "operator-sdk generate k8s" to regenerate code after modifying this file
 	// Add custom validation using kubebuilder tags: https://book-v1.book.kubebuilder.io/beyond_basics/generating_crd.html
+
+	// The various conditions for the custom domain
+	Conditions []CustomDomainCondition `json:"conditions"`
+
+	// The overall state of the custom domain
+	State CustomDomainStateType `json:"state,omitempty"`
 }
+
+// CustomDomainStateType is a valid value for CustomDomainStatus.State
+type CustomDomainStateType string
+
+const (
+	// CustomDomainStateNotReady is set when custom domain is not ready
+	CustomDomainStateNotReady CustomDomainStateType = "NotReady"
+
+	// CustomDomainStateReady is set when a custom domain is ready
+	CustomDomainStateReady CustomDomainStateType = "Ready"
+)
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -40,6 +57,61 @@ type CustomDomain struct {
 	Spec   CustomDomainSpec   `json:"spec,omitempty"`
 	Status CustomDomainStatus `json:"status,omitempty"`
 }
+
+// CustomDomainCondition contains details for the current condition of a custom domain
+type CustomDomainCondition struct {
+	// Type is the type of the condition.
+	Type CustomDomainConditionType `json:"type,omitempty"`
+	// Status is the status of the condition
+	Status corev1.ConditionStatus `json:"status,omitempty"`
+	// LastProbeTime is the last time we probed the condition.
+	// +optional
+	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty"`
+	// LastTransitionTime is the laste time the condition transitioned from one status to another.
+	// +optional
+	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty"`
+	// Reason is a unique, one-word, CamelCase reason for the condition's last transition.
+	// +optional
+	Reason string `json:"reason,omitempty"`
+	// Message is a human-readable message indicating details about last transition.
+	// +optional
+	Message string `json:"message,omitempty"`
+}
+
+// CustomDomainConditionType is a valid value for CustomDomainCondition.Type
+type CustomDomainConditionType string
+
+const (
+	// CustomDomainConditionCreating is set when a CustomDomain is being created
+	CustomDomainConditionCreating CustomDomainConditionType = "Creating"
+
+	// CustomDomainConditionSecretNotFound is set when the TLS secret has not been found yet
+	CustomDomainConditionSecretNotFound CustomDomainConditionType = "SecretNotFound"
+
+	// CustomDomainConditionRouterCertsError is set when there is an error getting/updating router-certs
+	CustomDomainConditionRouterCertsError CustomDomainConditionType = "RouterCertsError"
+
+	// CustomDomainConditionDNSOperatorError is set when there is an error getting/updating dns.operator/default
+	CustomDomainConditionDNSOperatorError CustomDomainConditionType = "DNSOperatorError"
+
+	// CustomDomainConditionDNSConfigError is set when there is an error getting/updating dns.config/cluster
+	CustomDomainConditionDNSConfigError CustomDomainConditionType = "DNSConfigError"
+
+	// CustomDomainDefaultRouterError is set when there is an error getting/updating ingresscontrollers/default
+	CustomDomainConditionDefaultRouterError CustomDomainConditionType = "DefaultRouterError"
+
+	// CustomDomainConditionIngressConfigError is set when there is an error getting/updating ingress.config/cluster
+	CustomDomainConditionIngressConfigError CustomDomainConditionType = "IngressConfigError"
+
+	// CustomDomainConditionSystemRoutesError is set when there is an error getting/updating system routes
+	CustomDomainConditionSystemRoutesError CustomDomainConditionType = "SystemRoutesError"
+
+	// CustomDomainConditionFailed is set when custom domain creation has failed
+	CustomDomainConditionFailed CustomDomainConditionType = "Failed"
+
+	// CustomDomainConditionReady is set when a CustomDomain creation is ready
+	CustomDomainConditionReady CustomDomainConditionType = "Ready"
+)
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
