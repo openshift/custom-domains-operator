@@ -1,11 +1,11 @@
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 
-ENV OPERATOR=/usr/local/bin/custom-domain-operator \
+ENV OPERATOR=/usr/local/bin/custom-domains-operator \
     USER_UID=1001 \
-    USER_NAME=custom-domain-operator
+    USER_NAME=custom-domains-operator
 
 # install operator binary
-COPY build/_output/bin/custom-domain-operator ${OPERATOR}
+COPY build/_output/bin/custom-domains-operator ${OPERATOR}
 
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup

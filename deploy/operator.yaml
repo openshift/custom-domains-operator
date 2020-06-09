@@ -1,24 +1,24 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: custom-domain-operator
+  name: custom-domains-operator
   namespace: openshift-operators
 spec:
   replicas: 1
   selector:
     matchLabels:
-      name: custom-domain-operator
+      name: custom-domains-operator
   template:
     metadata:
       labels:
-        name: custom-domain-operator
+        name: custom-domains-operator
     spec:
-      serviceAccountName: custom-domain-operator
+      serviceAccountName: custom-domains-operator
       containers:
-        - name: custom-domain-operator
+        - name: custom-domains-operator
           image: REPLACE_ME/custom-domains-operator
           command:
-          - custom-domain-operator
+          - custom-domains-operator
           args:
             - "--zap-level=debug"
             - "--zap-encoder=console"
@@ -31,4 +31,4 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: OPERATOR_NAME
-              value: "custom-domain-operator"
+              value: "custom-domains-operator"

@@ -3,11 +3,12 @@ package customdomain
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 
-	customdomainv1alpha1 "github.com/dustman9000/custom-domain-operator/pkg/apis/customdomain/v1alpha1"
+	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
 
+	configv1 "github.com/openshift/api/config/v1"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -26,12 +27,15 @@ func TestCustomDomainController(t *testing.T) {
 	logf.SetLogger(logf.ZapLogger(true))
 
 	var (
-		name       = "acme"
-		namespace  = "default"
-		domain     = "apps.foo.com"
-		basedomain = "apps.openshiftapps.com"
-		secretName = "tls"
-		secretData = "DEADBEEF"
+		name           = "acme"
+		namespace      = "default"
+		domain         = "apps.foo.com"
+		basedomain     = "apps.openshiftapps.com"
+		newSecretName  = "my-tls"
+		newSecretData  = "DEADBEEF"
+		oldSecretName  = "old-tls"
+		oldSecretData  = "0BADBEEF"
+		oldDomain      = "old.domain.com"
 	)
 
 	// A CustomDomain resource with metadata and spec.
@@ -41,30 +45,108 @@ func TestCustomDomainController(t *testing.T) {
 			Namespace: namespace,
 		},
 		Spec: customdomainv1alpha1.CustomDomainSpec{
-			Domain: domain,
-			TLSSecret: corev1.ObjectReference{
-				Name:      secretName,
-				Namespace: namespace,
-			},
+			Domain:    domain,
+			TLSSecret: newSecretName,
 		},
 	}
 
-	// A Secret of type kubernetes.io/tls
-	tlsSecret := &corev1.Secret{
+	// old secret of type kubernetes.io/tls
+	oldTlsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      secretName,
-			Namespace: namespace,
+			Name:      oldSecretName,
+			Namespace: "openshift-ingress",
 		},
 		Data: make(map[string][]byte),
 		Type: corev1.SecretTypeTLS,
 	}
-	tlsSecret.Data[corev1.TLSPrivateKeyKey] = []byte(secretData)
-	tlsSecret.Data[corev1.TLSCertKey] = []byte(secretData)
+	oldTlsSecret.Data[corev1.TLSPrivateKeyKey] = []byte(oldSecretData)
+	oldTlsSecret.Data[corev1.TLSCertKey] = []byte(oldSecretData)
+
+	// new secret of type kubernetes.io/tls
+	newTlsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      newSecretName,
+			Namespace: "openshift-ingress",
+		},
+		Data: make(map[string][]byte),
+		Type: corev1.SecretTypeTLS,
+	}
+	newTlsSecret.Data[corev1.TLSPrivateKeyKey] = []byte(newSecretData)
+	newTlsSecret.Data[corev1.TLSCertKey] = []byte(newSecretData)
+
+	// A Secret of type kubernetes.io/tls
+	mockRouterCerts := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "router-certs",
+			Namespace: "openshift-config-managed",
+		},
+		Data: make(map[string][]byte),
+	}
+	mockRouterCerts.Data[""] = []byte("")
+
+	// dns.operator.openshift.io/default
+	dnsOperator := &operatorv1.DNS{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: "",
+		},
+		Spec: operatorv1.DNSSpec{
+			Servers: []operatorv1.Server{},
+		},
+	}
+
+	// dns.config.openshift.io/cluster
+	dnsConfig := &configv1.DNS{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster",
+			Namespace: "",
+		},
+		Spec: configv1.DNSSpec{
+			BaseDomain: oldDomain,
+			PublicZone: &configv1.DNSZone{
+				ID: "12345",
+			},
+			PrivateZone: &configv1.DNSZone{
+				ID: "12345",
+			},
+		},
+	}
+
+	// ingresscontrollers.operator.openshift.io/default
+	defaultIngress := &operatorv1.IngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "default",
+			Namespace: "openshift-ingress-operator",
+		},
+		Spec: operatorv1.IngressControllerSpec{
+			Domain: oldDomain,
+			DefaultCertificate: &corev1.LocalObjectReference{
+				Name: oldSecretName,
+			},
+		},
+	}
+
+	// ingress.config.openshift.io/cluster
+	ingressConfig := &configv1.Ingress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster",
+			Namespace: "",
+		},
+		Spec: configv1.IngressSpec{
+			Domain: oldDomain,
+		},
+	}
 
 	// Objects to track in the fake client.
 	objs := []runtime.Object{
 		customdomain,
-		tlsSecret,
+		oldTlsSecret,
+		newTlsSecret,
+		mockRouterCerts,
+		dnsOperator,
+		dnsConfig,
+		defaultIngress,
+		ingressConfig,
 	}
 
 	for n, ns := range systemRoutes {
@@ -87,6 +169,16 @@ func TestCustomDomainController(t *testing.T) {
 	// Add route Openshift scheme
 	if err := routev1.AddToScheme(s); err != nil {
 		t.Fatalf("Unable to add route scheme: (%v)", err)
+	}
+
+	// Add Openshift operator v1 scheme
+	if err := operatorv1.AddToScheme(s); err != nil {
+		t.Fatalf("Unable to add operatorv1 scheme: (%v)", err)
+	}
+
+	// Add Openshift config v1 scheme
+	if err := configv1.AddToScheme(s); err != nil {
+		t.Fatalf("Unable to add configv1 scheme: (%v)", err)
 	}
 
 	s.AddKnownTypes(customdomainv1alpha1.SchemeGroupVersion, customdomain)
@@ -116,24 +208,77 @@ func TestCustomDomainController(t *testing.T) {
 		t.Error("reconcile requeue which is not expected")
 	}
 
-	// Create the expected routes in namespace and collect their names to check
-	// later.
-	routeLabels := labelsForRoute(name)
-	tlsConfig := &routev1.TLSConfig{
-		Key:         secretData,
-		Certificate: secretData,
+	// Check status
+
+	// check actual router-certs secret
+	actualRouterCerts := &corev1.Secret{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      "router-certs",
+		Namespace: "openshift-config-managed",
+	}, actualRouterCerts)
+	if _, ok := actualRouterCerts.Data[domain]; !ok {
+		t.Errorf(fmt.Sprintf("Missing domain key from router-certs: (%v)", domain))
 	}
+
+	// check actual dns.operator/default
+	actualDnsOperator := &operatorv1.DNS{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name: "default",
+	}, actualDnsOperator)
+	if actualDnsOperator.Spec.Servers[0].Name != name {
+		t.Errorf(fmt.Sprintf("CRD dns.operator/default name mismatch: (%v)", actualDnsOperator.Spec.Servers[0].Name))
+	}
+	if actualDnsOperator.Spec.Servers[0].Zones[0] != domain {
+		t.Errorf(fmt.Sprintf("CRD dns.operator/default zones mismatch: (%v)", actualDnsOperator.Spec.Servers[0].Zones[0]))
+	}
+
+	// check actual ingresscontrollers.operator.openshift.io/default
+	actualDefaultIngress := &operatorv1.IngressController{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      "default",
+		Namespace: "openshift-ingress-operator",
+	}, actualDefaultIngress)
+	if actualDefaultIngress.Spec.Domain != domain {
+		t.Errorf(fmt.Sprintf("CRD ingresscontrollers.operator.openshift.io/default domain mismatch: (%v)", actualDefaultIngress.Spec.Domain))
+	}
+
+	// check actual ingresses.config.openshift.io/cluster
+	actualIngressConfig := &configv1.Ingress{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name: "cluster",
+	}, actualIngressConfig)
+	if actualIngressConfig.Spec.Domain != domain {
+		t.Errorf(fmt.Sprintf("CRD ingresses.config.openshift.io/cluster domain mismatch: (%v)", actualIngressConfig.Spec.Domain))
+	}
+
+	// check annotations
+	actualCustomDomain := &customdomainv1alpha1.CustomDomain{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      name,
+		Namespace: namespace,
+	}, actualCustomDomain)
+	if actualCustomDomain.ObjectMeta.Annotations == nil || actualCustomDomain.ObjectMeta.Annotations["original-domain"] != oldDomain {
+		t.Errorf(fmt.Sprintf("Problem with 'original-domain' annotation: (%+v)", actualCustomDomain.ObjectMeta.Annotations))
+	}
+	if actualCustomDomain.ObjectMeta.Annotations == nil || actualCustomDomain.ObjectMeta.Annotations["original-certificate"] != oldSecretName {
+		t.Errorf(fmt.Sprintf("Problem with 'original-certificate' annotation: (%+v)", actualCustomDomain.ObjectMeta.Annotations))
+	}
+
+	// check for ready status
+	if actualCustomDomain.Status.State != customdomainv1alpha1.CustomDomainStateReady {
+		t.Errorf(fmt.Sprintf("Status.State does not equal (%s)", string(customdomainv1alpha1.CustomDomainStateReady)))
+	}
+
+	// Check resulting modified 'system' routes
 	for n, ns := range systemRoutes {
 		actualRoute := &routev1.Route{}
 		expectedRoute := &routev1.Route{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      n + "-" + name,
+				Name:      n,
 				Namespace: ns,
-				Labels:    routeLabels,
 			},
 			Spec: routev1.RouteSpec{
 				Host: n + "." + domain,
-				TLS:  tlsConfig,
 			},
 		}
 		err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -152,16 +297,8 @@ func TestCustomDomainController(t *testing.T) {
 			t.Error(fmt.Sprintf("actual route namespace (%v) does not match expected route namespace (%v)", actualRoute.Namespace, expectedRoute.Namespace))
 			continue
 		}
-		if !reflect.DeepEqual(actualRoute.Labels, expectedRoute.Labels) {
-			t.Error("actual route labels do not match expected route labels")
-			continue
-		}
 		if actualRoute.Spec.Host != expectedRoute.Spec.Host {
 			t.Error(fmt.Sprintf("actual route host (%v) does not match expected route host (%v)", actualRoute.Spec.Host, expectedRoute.Spec.Host))
-			continue
-		}
-		if !reflect.DeepEqual(actualRoute.Spec.TLS, expectedRoute.Spec.TLS) {
-			t.Error("actual route tls config does not match expected route tls config")
 			continue
 		}
 	}
