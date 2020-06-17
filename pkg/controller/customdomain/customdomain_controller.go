@@ -324,9 +324,6 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 		if _, ok := instance.ObjectMeta.Annotations["original-domain"]; !ok {
 			instance.ObjectMeta.Annotations["original-domain"] = defaultIngress.Spec.Domain
 		}
-		if _, ok := instance.ObjectMeta.Annotations["original-certificate"]; !ok {
-			instance.ObjectMeta.Annotations["original-certificate"] = defaultIngress.Spec.DefaultCertificate.Name
-		}
 		if _, ok := instance.ObjectMeta.Annotations["original-default-ingresscontroller"]; !ok {
 			encSpec, _ := json.Marshal(defaultIngress.Spec)
 			// update status with old domain and tls secret
@@ -338,6 +335,9 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 		}
 		defaultIngress.Spec.Domain = domain
 		if defaultIngress.Spec.DefaultCertificate != nil {
+			if _, ok := instance.ObjectMeta.Annotations["original-certificate"]; !ok {
+				instance.ObjectMeta.Annotations["original-certificate"] = defaultIngress.Spec.DefaultCertificate.Name
+			}
 			defaultIngress.Spec.DefaultCertificate.Name = cert
 		} else {
 			defaultIngress.Spec.DefaultCertificate = &corev1.LocalObjectReference{}
@@ -370,7 +370,8 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 	ingressConfig.Spec.Domain = domain
 	err = r.client.Update(context.TODO(), ingressConfig)
 	if err != nil {
-		log.Error(err, "Error updating ingresses.config.openshift.io/cluster")
+		reqLogger.Error(err, "Error updating ingresses.config.openshift.io/cluster")
+		return err
 	}
 
 	// modify publishingstrategies.cloudingress.managed.openshift.io/publishingstrategy
@@ -562,8 +563,10 @@ func duplicateRoute(srcRoute *routev1.Route, tlsSecret *corev1.Secret, domain st
 	hostPart := strings.Split(srcRoute.Spec.Host, ".")[0]
 	destRoute.Spec.Host = hostPart + "." + domain
 	destRoute.Spec.TLS = tlsConfig
-	destRoute.Spec.TLS.Termination = srcRoute.Spec.TLS.Termination
-	destRoute.Spec.TLS.InsecureEdgeTerminationPolicy = srcRoute.Spec.TLS.InsecureEdgeTerminationPolicy
+	if srcRoute.Spec.TLS != nil {
+		destRoute.Spec.TLS.Termination = srcRoute.Spec.TLS.Termination
+		destRoute.Spec.TLS.InsecureEdgeTerminationPolicy = srcRoute.Spec.TLS.InsecureEdgeTerminationPolicy
+	}
 	return destRoute
 }
 
