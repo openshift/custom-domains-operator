@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
 
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	routev1 "github.com/openshift/api/route/v1"
+	cloudingressv1alpha1 "github.com/openshift/cloud-ingress-operator/pkg/apis/cloudingress/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -137,6 +139,26 @@ func TestCustomDomainController(t *testing.T) {
 		},
 	}
 
+	publishingStrategy := &cloudingressv1alpha1.PublishingStrategy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "publishingstrategy",
+			Namespace: "openshift-cloud-ingress-operator",
+		},
+		Spec: cloudingressv1alpha1.PublishingStrategySpec {
+			ApplicationIngress: []cloudingressv1alpha1.ApplicationIngress{
+				cloudingressv1alpha1.ApplicationIngress{
+					Listening: "external",
+					Default:   true,
+					DNSName:   oldDomain,
+					Certificate: corev1.SecretReference{
+						Name:      oldSecretName,
+						Namespace: "openshift-ingress",
+					},
+				},
+			},
+		},
+	}
+
 	// Objects to track in the fake client.
 	objs := []runtime.Object{
 		customdomain,
@@ -147,6 +169,7 @@ func TestCustomDomainController(t *testing.T) {
 		dnsConfig,
 		defaultIngress,
 		ingressConfig,
+		publishingStrategy,
 	}
 
 	for n, ns := range systemRoutes {
@@ -181,7 +204,13 @@ func TestCustomDomainController(t *testing.T) {
 		t.Fatalf("Unable to add configv1 scheme: (%v)", err)
 	}
 
+	// Add Openshift cloudingressv1alpha
+	if err := cloudingressv1alpha1.SchemeBuilder.AddToScheme(s); err != nil {
+		t.Fatalf("Unable to add cloudingressv1alpha1 scheme: (%v)", err)
+	}
+
 	s.AddKnownTypes(customdomainv1alpha1.SchemeGroupVersion, customdomain)
+
 	// Create a fake client to mock API calls.
 	cl := fake.NewFakeClient(objs...)
 
@@ -207,8 +236,6 @@ func TestCustomDomainController(t *testing.T) {
 	if res.Requeue {
 		t.Error("reconcile requeue which is not expected")
 	}
-
-	// Check status
 
 	// check actual router-certs secret
 	actualRouterCerts := &corev1.Secret{}
@@ -318,5 +345,55 @@ func TestCustomDomainController(t *testing.T) {
 	err = r.client.Get(context.TODO(), req.NamespacedName, customdomain)
 	if err != nil {
 		t.Errorf("get customdomain: (%v)", err)
+	}
+	// check that status is ready
+	if customdomain.Status.State != customdomainv1alpha1.CustomDomainStateReady {
+		t.Errorf("Status is not Ready")
+	}
+
+	// simulate deletion
+	now := metav1.NewTime(time.Now())
+	customdomain.SetDeletionTimestamp(&now)
+	err = r.client.Update(context.TODO(), customdomain)
+	if err != nil {
+		t.Fatalf("customdomain update: (%v)", err)
+	}
+	res, err = r.Reconcile(req)
+	if err != nil {
+		t.Fatalf("reconcile: (%v)", err)
+	}
+
+	err = r.client.Get(context.TODO(), req.NamespacedName, customdomain)
+	if err != nil {
+		t.Errorf("get customdomain: (%v)", err)
+	}
+	customdomain.SetFinalizers(remove(customdomain.GetFinalizers(), customDomainFinalizer))
+	err = r.client.Update(context.TODO(), customdomain)
+	if err != nil {
+		t.Fatalf("customdomain update: (%v)", err)
+	}
+	res, err = r.Reconcile(req)
+	if err != nil {
+		t.Fatalf("reconcile: (%v)", err)
+	}
+
+	// check that deletion of the customdomain and reconcile path
+	err = r.client.Delete(context.TODO(), customdomain)
+	if err != nil {
+		t.Errorf("delete customdomain: (%v)", err)
+	}
+	res, err = r.Reconcile(req)
+	if err != nil {
+		t.Fatalf("reconcile: (%v)", err)
+	}
+	if res != (reconcile.Result{}) {
+		t.Error("reconcile did not return an empty Result")
+	}
+	res, err = r.Reconcile(req)
+	if err != nil {
+		t.Fatalf("reconcile: (%v)", err)
+	}
+	if res != (reconcile.Result{}) {
+		t.Error("reconcile did not return an empty Result")
 	}
 }
