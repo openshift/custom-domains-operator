@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"github.com/dustman9000/custom-domain-operator/pkg/controller/customdomain"
+	"github.com/openshift/custom-domains-operator/pkg/controller/customdomain"
 )
 
 func init() {

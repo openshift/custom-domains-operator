@@ -1,7 +1,7 @@
 package apis
 
 import (
-	"github.com/dustman9000/custom-domain-operator/pkg/apis/customdomain/v1alpha1"
+	"github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
 )
 
 func init() {

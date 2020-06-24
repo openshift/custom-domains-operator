@@ -30,7 +30,7 @@ oc apply -f deploy/crds/managed.openshift.io_customdomains_crd.yaml
 
 #### Run locally outside of cluster
 ```
-operator-sdk run --local --watch-namespace ''
+operator-sdk run --local --namespace ''
 ```
 
 #### Build and Deploy To Cluster
@@ -46,7 +46,8 @@ oc apply -f deploy/operator.yaml
 #### Add Secrets and CustomDomain CRD
 ```
 oc new-project acme-apps
-oc -n acme-apps create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
+# secret must be created in the 'openshift-ingress' namespace
+oc -n openshift-ingress create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
 oc apply -f <(echo "
 apiVersion: managed.openshift.io/v1alpha1
 kind: CustomDomain

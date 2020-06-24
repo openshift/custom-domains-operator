@@ -1,12 +1,12 @@
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: custom-domain-operator
+  name: custom-domains-operator
 subjects:
 - kind: ServiceAccount
-  name: custom-domain-operator
+  name: custom-domains-operator
   namespace: openshift-operators
 roleRef:
   kind: ClusterRole
-  name: custom-domain-operator
+  name: custom-domains-operator
   apiGroup: rbac.authorization.k8s.io

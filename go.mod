@@ -1,14 +1,15 @@
-module github.com/dustman9000/custom-domain-operator
+module github.com/openshift/custom-domains-operator
 
 go 1.13
 
 require (
 	github.com/go-logr/logr v0.1.0
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
+	github.com/openshift/cloud-ingress-operator v0.0.0-20200304140751-d5ad6766555f
 	github.com/operator-framework/operator-sdk v0.16.0
 	github.com/spf13/pflag v1.0.5
-	k8s.io/api v0.0.0
-	k8s.io/apimachinery v0.0.0
+	k8s.io/api v0.18.0
+	k8s.io/apimachinery v0.18.0
 	k8s.io/client-go v12.0.0+incompatible
 	sigs.k8s.io/controller-runtime v0.4.0
 )
@@ -40,4 +41,4 @@ replace (
 
 replace github.com/docker/docker => github.com/moby/moby v0.7.3-0.20190826074503-38ab9da00309 // Required by Helm
 
-replace github.com/openshift/api => github.com/openshift/api v0.0.0-20190924102528-32369d4db2ad // Required until https://github.com/operator-framework/operator-lifecycle-manager/pull/1241 is resolved
+replace github.com/openshift/api => github.com/openshift/api v0.0.0-20200416222006-8cfd79130f9c
