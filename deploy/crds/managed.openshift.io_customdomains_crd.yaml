@@ -28,6 +28,12 @@ spec:
           type: string
         metadata:
           type: object
+          properties:
+            name:
+              type: string
+              # Force "cluster" as CR name.
+              enum:
+               - cluster
         spec:
           description: CustomDomainSpec defines the desired state of CustomDomain
           properties:
