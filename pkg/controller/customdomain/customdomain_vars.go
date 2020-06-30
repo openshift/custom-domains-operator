@@ -3,6 +3,7 @@ package customdomain
 // system routes (name : namespace)
 // TODO: make this configurable in CRD
 var systemRoutes = map[string]string{
+	"oauth-openshift":   "openshift-authentication",
 	"console":           "openshift-console",
 	"downloads":         "openshift-console",
 	"default-route":     "openshift-image-registry",

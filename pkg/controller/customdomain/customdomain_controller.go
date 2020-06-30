@@ -142,8 +142,9 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 // modifyClusterDomain modifies the cluster domain
 func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain, finalize bool) error {
 	var (
-		domain = ""
-		cert   = ""
+		domain        = ""
+		cert          = ""
+		crNeedsUpdate = false
 	)
 
 	// if we are restoring the original domain, get original state from annotations
@@ -165,9 +166,6 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 				customdomainv1alpha1.CustomDomainConditionCreating,
 				customdomainv1alpha1.CustomDomainStateNotReady)
 			r.statusUpdate(reqLogger, instance)
-		}
-		if instance.ObjectMeta.Annotations == nil {
-			instance.ObjectMeta.Annotations = make(map[string]string)
 		}
 	}
 
@@ -247,9 +245,9 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 			},
 		}
 		// serialize and store original dns.operator/default
-		if _, ok := instance.ObjectMeta.Annotations["original-dns-operator"]; !ok {
+		if !metav1.HasAnnotation(instance.ObjectMeta, "original-dns-operator") {
 			encSpec, _ := json.Marshal(dnsOperator.Spec)
-			instance.ObjectMeta.Annotations["original-dns-operator"] = string(encSpec)
+			metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-dns-operator", string(encSpec))
 		}
 		if dnsOperator.Spec.Servers != nil && len(dnsOperator.Spec.Servers) > 0 {
 			dnsOperator.Spec.Servers[0] = *dnsServer
@@ -258,7 +256,7 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 		}
 	} else {
 		// deserialize original dns.operator/default
-		if _, ok := instance.ObjectMeta.Annotations["original-dns-operator"]; ok {
+		if metav1.HasAnnotation(instance.ObjectMeta, "original-dns-operator") {
 			decSpec := operatorv1.DNSSpec{}
 			json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-dns-operator"]), &decSpec)
 			dnsOperator.Spec = decSpec
@@ -281,13 +279,10 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 	}
 	if !finalize {
 		// serialize and store original dns.config/cluster
-		if _, ok := instance.ObjectMeta.Annotations["original-dns-config"]; !ok {
-			encSpec, _ := json.Marshal(dnsConfig.Spec)
-			instance.ObjectMeta.Annotations["original-dns-config"] = string(encSpec)
-			err = r.client.Update(context.TODO(), instance)
-			if err != nil {
-				reqLogger.Error(err, "Error updating instance with 'original-dns-config' annotation")
-			}
+		if !metav1.HasAnnotation(instance.ObjectMeta, "original-dns-config") {
+			encSpec, _ := json.Marshal(dnsOperator.Spec)
+			metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-dns-config", string(encSpec))
+			crNeedsUpdate = true
 		}
 		// get top-level domain name
 		baseDomain := domain[strings.IndexByte(domain, '.')+1 : len(domain)]
@@ -297,7 +292,7 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 		dnsConfig.Spec.PublicZone = nil
 	} else {
 		// deserialize original dns.config/cluster
-		if _, ok := instance.ObjectMeta.Annotations["original-dns-config"]; ok {
+		if metav1.HasAnnotation(instance.ObjectMeta, "original-dns-config") {
 			decSpec := configv1.DNSSpec{}
 			json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-dns-config"]), &decSpec)
 			dnsConfig.Spec = decSpec
@@ -321,22 +316,20 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 	}
 	// Only update annotations when creating new CustomDomain
 	if !finalize {
-		if _, ok := instance.ObjectMeta.Annotations["original-domain"]; !ok {
-			instance.ObjectMeta.Annotations["original-domain"] = defaultIngress.Spec.Domain
+		if !metav1.HasAnnotation(instance.ObjectMeta, "original-domain") {
+			metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-domain", defaultIngress.Spec.Domain)
+			crNeedsUpdate = true
 		}
-		if _, ok := instance.ObjectMeta.Annotations["original-default-ingresscontroller"]; !ok {
+		if !metav1.HasAnnotation(instance.ObjectMeta, "original-default-ingresscontroller") {
 			encSpec, _ := json.Marshal(defaultIngress.Spec)
-			// update status with old domain and tls secret
-			instance.ObjectMeta.Annotations["original-default-ingresscontroller"] = string(encSpec)
-			err = r.client.Update(context.TODO(), instance)
-			if err != nil {
-				reqLogger.Error(err, "Error updating instance with original annotations")
-			}
+			metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-default-ingresscontroller", string(encSpec))
+			crNeedsUpdate = true
 		}
 		defaultIngress.Spec.Domain = domain
 		if defaultIngress.Spec.DefaultCertificate != nil {
-			if _, ok := instance.ObjectMeta.Annotations["original-certificate"]; !ok {
-				instance.ObjectMeta.Annotations["original-certificate"] = defaultIngress.Spec.DefaultCertificate.Name
+			if !metav1.HasAnnotation(instance.ObjectMeta, "original-certificate") {
+				metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-certificate", defaultIngress.Spec.DefaultCertificate.Name)
+				crNeedsUpdate = true
 			}
 			defaultIngress.Spec.DefaultCertificate.Name = cert
 		} else {
@@ -374,6 +367,52 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 		return err
 	}
 
+	// modify apiservers.config.openshift.io/cluster to support login on new domain
+	apiserverConfig := &configv1.APIServer{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name: "cluster",
+	}, apiserverConfig)
+	if err != nil {
+		reqLogger.Error(err, "Error getting apiservers.config.openshift.io/cluster")
+		// Error reading the object - requeue the request.
+		return err
+	}
+	if !finalize {
+		if !metav1.HasAnnotation(instance.ObjectMeta, "original-apiserver-config") {
+			encSpec, _ := json.Marshal(apiserverConfig.Spec)
+			metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-apiserver-config", string(encSpec))
+			crNeedsUpdate = true
+		}
+		found := false
+		for _, item := range apiserverConfig.Spec.ServingCerts.NamedCertificates {
+			if contains(item.Names, "api."+domain) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			namedCert := configv1.APIServerNamedServingCert{
+				Names: []string{string("api." + domain)},
+				ServingCertificate: configv1.SecretNameReference{
+					Name: cert,
+				},
+			}
+			apiserverConfig.Spec.ServingCerts.NamedCertificates = append(apiserverConfig.Spec.ServingCerts.NamedCertificates, namedCert)
+		}
+	} else {
+		// deserialize original apiserver-config
+		if metav1.HasAnnotation(instance.ObjectMeta, "original-apiserver-config") {
+			decSpec := configv1.APIServerSpec{}
+			json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-apiserver-config"]), &decSpec)
+			apiserverConfig.Spec = decSpec
+		}
+	}
+	err = r.client.Update(context.TODO(), apiserverConfig)
+	if err != nil {
+		reqLogger.Error(err, "Error updating apiservers.config.openshift.io/cluster")
+		return err
+	}
+
 	// modify publishingstrategies.cloudingress.managed.openshift.io/publishingstrategy
 	publishingStrategy := &cloudingressv1alpha1.PublishingStrategy{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
@@ -384,14 +423,10 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 		reqLogger.Error(err, "Error getting default publishingstrategy")
 	} else {
 		if !finalize {
-			if _, ok := instance.ObjectMeta.Annotations["original-publishingstrategy"]; !ok {
+			if !metav1.HasAnnotation(instance.ObjectMeta, "original-publishingstrategy") {
 				encSpec, _ := json.Marshal(publishingStrategy.Spec)
-				// update status with old domain and tls secret
-				instance.ObjectMeta.Annotations["original-publishingstrategy"] = string(encSpec)
-				err = r.client.Update(context.TODO(), instance)
-				if err != nil {
-					reqLogger.Error(err, "Error updating instance with original annotations")
-				}
+				metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-publishingstrategy", string(encSpec))
+				crNeedsUpdate = true
 			}
 			appIngress := &cloudingressv1alpha1.ApplicationIngress{
 				Listening: "external",
@@ -405,7 +440,7 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 			publishingStrategy.Spec.ApplicationIngress[0] = *appIngress
 		} else {
 			// deserialize original publishingstrategy
-			if _, ok := instance.ObjectMeta.Annotations["original-publishingstrategy"]; ok {
+			if metav1.HasAnnotation(instance.ObjectMeta, "original-publishingstrategy") {
 				decSpec := cloudingressv1alpha1.PublishingStrategySpec{}
 				json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-publishingstrategy"]), &decSpec)
 				publishingStrategy.Spec = decSpec
@@ -439,7 +474,7 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 			}, originalSecret)
 			if err != nil {
 				// secret needed to continue
-				reqLogger.Info(fmt.Sprintf("Error getting secret (%s)!", instance.ObjectMeta.Annotations["original-certificate"]))
+				reqLogger.Error(err, fmt.Sprintf("Error getting original secret (%s)!", instance.ObjectMeta.Annotations["original-certificate"]))
 				return err
 			}
 			newRoute := duplicateRoute(systemRoute, originalSecret, instance.ObjectMeta.Annotations["original-domain"])
@@ -524,6 +559,13 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 			customdomainv1alpha1.CustomDomainStateReady)
 		r.statusUpdate(reqLogger, instance)
 	}
+	if crNeedsUpdate {
+		err = r.client.Update(context.TODO(), instance)
+		if err != nil {
+			reqLogger.Error(err, "Error updating instance")
+			return err
+		}
+	}
 	return nil
 }
 
@@ -564,8 +606,13 @@ func duplicateRoute(srcRoute *routev1.Route, tlsSecret *corev1.Secret, domain st
 	destRoute.Spec.Host = hostPart + "." + domain
 	destRoute.Spec.TLS = tlsConfig
 	if srcRoute.Spec.TLS != nil {
-		destRoute.Spec.TLS.Termination = srcRoute.Spec.TLS.Termination
-		destRoute.Spec.TLS.InsecureEdgeTerminationPolicy = srcRoute.Spec.TLS.InsecureEdgeTerminationPolicy
+		if srcRoute.Spec.TLS.Termination != routev1.TLSTerminationPassthrough {
+			destRoute.Spec.TLS.Termination = srcRoute.Spec.TLS.Termination
+			destRoute.Spec.TLS.InsecureEdgeTerminationPolicy = srcRoute.Spec.TLS.InsecureEdgeTerminationPolicy
+		} else {
+			destRoute.Spec.TLS.Termination = routev1.TLSTerminationEdge
+			destRoute.Spec.TLS.InsecureEdgeTerminationPolicy = routev1.InsecureEdgeTerminationPolicyRedirect
+		}
 	}
 	return destRoute
 }
