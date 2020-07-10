@@ -29,15 +29,15 @@ func TestCustomDomainController(t *testing.T) {
 	logf.SetLogger(logf.ZapLogger(true))
 
 	var (
-		name           = "acme"
-		namespace      = "default"
-		domain         = "apps.foo.com"
-		basedomain     = "apps.openshiftapps.com"
-		newSecretName  = "my-tls"
-		newSecretData  = "DEADBEEF"
-		oldSecretName  = "old-tls"
-		oldSecretData  = "0BADBEEF"
-		oldDomain      = "old.domain.com"
+		name          = "cluster"
+		namespace     = "default"
+		domain        = "apps.foo.com"
+		basedomain    = "apps.openshiftapps.com"
+		newSecretName = "my-tls"
+		newSecretData = "DEADBEEF"
+		oldSecretName = "old-tls"
+		oldSecretData = "0BADBEEF"
+		oldDomain     = "old.domain.com"
 	)
 
 	// A CustomDomain resource with metadata and spec.
@@ -139,12 +139,30 @@ func TestCustomDomainController(t *testing.T) {
 		},
 	}
 
+	// apiserver.config.openshift.io/cluster
+	apiserverConfig := &configv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster",
+			Namespace: "",
+		},
+		Spec: configv1.APIServerSpec{
+			ServingCerts: configv1.APIServerServingCerts{
+				NamedCertificates: []configv1.APIServerNamedServingCert{
+					configv1.APIServerNamedServingCert{
+						Names: []string{"api." + oldDomain},
+					},
+				},
+			},
+		},
+	}
+
+	// publishingstrategy
 	publishingStrategy := &cloudingressv1alpha1.PublishingStrategy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "publishingstrategy",
 			Namespace: "openshift-cloud-ingress-operator",
 		},
-		Spec: cloudingressv1alpha1.PublishingStrategySpec {
+		Spec: cloudingressv1alpha1.PublishingStrategySpec{
 			ApplicationIngress: []cloudingressv1alpha1.ApplicationIngress{
 				cloudingressv1alpha1.ApplicationIngress{
 					Listening: "external",
@@ -169,6 +187,7 @@ func TestCustomDomainController(t *testing.T) {
 		dnsConfig,
 		defaultIngress,
 		ingressConfig,
+		apiserverConfig,
 		publishingStrategy,
 	}
 
@@ -272,7 +291,8 @@ func TestCustomDomainController(t *testing.T) {
 	// check actual ingresses.config.openshift.io/cluster
 	actualIngressConfig := &configv1.Ingress{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
-		Name: "cluster",
+		Name:      "cluster",
+		Namespace: "",
 	}, actualIngressConfig)
 	if actualIngressConfig.Spec.Domain != domain {
 		t.Errorf(fmt.Sprintf("CRD ingresses.config.openshift.io/cluster domain mismatch: (%v)", actualIngressConfig.Spec.Domain))

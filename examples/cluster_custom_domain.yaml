@@ -4,6 +4,4 @@ metadata:
   name: cluster
 spec:
   domain: apps.acme.io
-  tlsSecret:
-    name: acme-tls
-    namespace: acme-apps
+  tlsSecret: acme-tls

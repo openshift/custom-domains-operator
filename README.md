@@ -1,10 +1,8 @@
 # Openshift Dedicated Custom Domain Operator
 
-This allows for a custom domain and certificate to be installed as a day-2 operation.
+This allows for a custom domain with custom certificate to be installed as a day-2 operation.
 
 ### Prerequisites
-
-What things you need to install the software and how to install them
 
 GVM (GoLang 1.13.6)
 ```
@@ -46,8 +44,9 @@ oc apply -f deploy/operator.yaml
 #### Add Secrets and CustomDomain CRD
 ```
 oc new-project acme-apps
-# secret must be created in the 'openshift-ingress' namespace
+# secret must be created in the 'openshift-ingress' and 'openshift-config' namespace
 oc -n openshift-ingress create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
+oc -n openshift-config create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
 oc apply -f <(echo "
 apiVersion: managed.openshift.io/v1alpha1
 kind: CustomDomain
@@ -55,8 +54,6 @@ metadata:
   name: cluster
 spec:
   domain: apps.acme.io
-  tlsSecret:
-    name: acme-tls
-    namespace: acme-apps
+  tlsSecret: acme-tls
 ")
 ```
