@@ -285,7 +285,7 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 			crNeedsUpdate = true
 		}
 		// get top-level domain name
-		baseDomain := domain[strings.IndexByte(domain, '.')+1 : len(domain)]
+		baseDomain := domain[strings.IndexByte(domain, '.')+1:]
 		dnsConfig.Spec.BaseDomain = baseDomain
 		// we must set the private and public zones to nil to tell the ingress operator to not manage the DNS
 		dnsConfig.Spec.PrivateZone = nil
