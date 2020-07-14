@@ -148,7 +148,7 @@ func TestCustomDomainController(t *testing.T) {
 		Spec: configv1.APIServerSpec{
 			ServingCerts: configv1.APIServerServingCerts{
 				NamedCertificates: []configv1.APIServerNamedServingCert{
-					{
+					configv1.APIServerNamedServingCert{
 						Names: []string{"api." + oldDomain},
 					},
 				},
@@ -164,7 +164,7 @@ func TestCustomDomainController(t *testing.T) {
 		},
 		Spec: cloudingressv1alpha1.PublishingStrategySpec{
 			ApplicationIngress: []cloudingressv1alpha1.ApplicationIngress{
-				{
+				cloudingressv1alpha1.ApplicationIngress{
 					Listening: "external",
 					Default:   true,
 					DNSName:   oldDomain,
