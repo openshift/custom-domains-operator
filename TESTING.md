@@ -8,8 +8,8 @@ go test ./pkg/controller/customdomain/ -coverprofile /tmp/cp.out && go tool cove
 
 ## Live Testing
 ### SRE Setup
-[Pause Syncset](https://github.com/openshift/ops-sop/blob/master/v4/howto/pause-syncset.md)
-[Elevate Privleges](https://github.com/openshift/ops-sop/blob/master/v4/howto/manage-privileges.md#elevate-privileges)
+1. [Pause Syncset](https://github.com/openshift/ops-sop/blob/master/v4/howto/pause-syncset.md)
+2. [Elevate Privleges](https://github.com/openshift/ops-sop/blob/master/v4/howto/manage-privileges.md#elevate-privileges)
 
 Create CRD
 ```
