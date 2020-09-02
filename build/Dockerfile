@@ -1,14 +1,14 @@
 FROM registry.svc.ci.openshift.org/openshift/release:golang-1.13 AS builder
 
-RUN mkdir /custom-domains-operator
+RUN mkdir /src
 
 # Copy and download the dependecies so that they are cached locally in the stages.
-COPY go.mod /custom-domains-operator
-COPY go.sum /custom-domains-operator
-WORKDIR /custom-domains-operator
+COPY go.mod /src
+COPY go.sum /src
+WORKDIR /src
 RUN go mod download
 
-COPY . /custom-domains-operator
+COPY . /src
 
 RUN make gobuild
 
@@ -18,7 +18,7 @@ ENV OPERATOR=/usr/local/bin/custom-domains-operator \
     USER_NAME=custom-domains-operator
 ENV OPERATOR_BIN=custom-domains-operator
 
-COPY --from=builder /custom-domains-operator/build/_output/bin/${OPERATOR_BIN} /usr/local/bin/${OPERATOR_BIN}
+COPY --from=builder /src/build/_output/bin/${OPERATOR_BIN} /usr/local/bin/${OPERATOR_BIN}
 COPY build/bin /usr/local/bin
 RUN  /usr/local/bin/user_setup
 
