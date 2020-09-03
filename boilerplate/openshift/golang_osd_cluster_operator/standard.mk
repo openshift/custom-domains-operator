@@ -37,6 +37,10 @@ GOENV=GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=0 GOFLAGS=
 
 GOBUILDFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
+# GOLANGCI_LINT_CACHE needs to be set to a directory which is writeable
+# Relevant issue - https://github.com/golangci/golangci-lint/issues/734
+GOLANGCI_LINT_CACHE ?= /tmp/golangci-cache
+
 TESTTARGETS := $(shell ${GOENV} go list -e ./... | egrep -v "/(vendor)/")
 # ex, -v
 TESTOPTS :=
@@ -71,8 +75,8 @@ docker-push: push
 
 .PHONY: gocheck
 gocheck: ## Lint code
-	boilerplate/openshift/golang_osd_cluster_operator/golint.sh
-	${GOENV} go vet ./cmd/... ./pkg/...
+	boilerplate/_lib/ensure.sh golangci-lint
+	GOLANGCI_LINT_CACHE=${GOLANGCI_LINT_CACHE} golangci-lint run -c boilerplate/openshift/golang_osd_cluster_operator/golangci.yml ./...
 
 .PHONY: gogenerate
 gogenerate:
@@ -106,7 +110,7 @@ envtest: isclean
 	@eval $$($(MAKE) env --no-print-directory) || (echo 'Unable to evaulate output of `make env`.  This breaks osd-operators-registry.' >&2 && exit 1)
 
 .PHONY: test
-test: envtest gotest
+test: envtest gotest yaml-validate
 
 .PHONY: env
 .SILENT: env
@@ -115,3 +119,7 @@ env: isclean
 	echo OPERATOR_NAMESPACE=$(OPERATOR_NAMESPACE)
 	echo OPERATOR_VERSION=$(OPERATOR_VERSION)
 	echo OPERATOR_IMAGE_URI=$(OPERATOR_IMAGE_URI)
+
+.PHONY: yaml-validate
+yaml-validate:
+	python3 boilerplate/openshift/golang_osd_cluster_operator/validate_yaml.py $(shell git ls-files | egrep -v '^(vendor|boilerplate)/' | egrep '.*\.ya?ml')

@@ -142,9 +142,9 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 // modifyClusterDomain modifies the cluster domain
 func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain, finalize bool) error {
 	var (
-		domain        = ""
-		cert          = ""
-		crNeedsUpdate = false
+		cert          string
+		domain        string
+		crNeedsUpdate bool
 	)
 
 	// if we are restoring the original domain, get original state from annotations
@@ -165,7 +165,10 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 				fmt.Sprintf("Creating Custom Domain (%s)", domain),
 				customdomainv1alpha1.CustomDomainConditionCreating,
 				customdomainv1alpha1.CustomDomainStateNotReady)
-			r.statusUpdate(reqLogger, instance)
+			err := r.statusUpdate(reqLogger, instance)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -185,7 +188,7 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 			fmt.Sprintf("TLS Secret (%s) Not Found", cert),
 			customdomainv1alpha1.CustomDomainConditionSecretNotFound,
 			customdomainv1alpha1.CustomDomainStateNotReady)
-		r.statusUpdate(reqLogger, instance)
+		_ = r.statusUpdate(reqLogger, instance)
 		return err
 	}
 
@@ -205,7 +208,7 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 			"Error getting router-certs",
 			customdomainv1alpha1.CustomDomainConditionRouterCertsError,
 			customdomainv1alpha1.CustomDomainStateNotReady)
-		r.statusUpdate(reqLogger, instance)
+		_ = r.statusUpdate(reqLogger, instance)
 		return err
 	}
 	if _, ok := routerCert.Data[domain]; !ok {
@@ -221,7 +224,7 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 				"Error updating router-certs",
 				customdomainv1alpha1.CustomDomainConditionRouterCertsError,
 				customdomainv1alpha1.CustomDomainStateNotReady)
-			r.statusUpdate(reqLogger, instance)
+			_ = r.statusUpdate(reqLogger, instance)
 		}
 	}
 
@@ -258,7 +261,10 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 		// deserialize original dns.operator/default
 		if metav1.HasAnnotation(instance.ObjectMeta, "original-dns-operator") {
 			decSpec := operatorv1.DNSSpec{}
-			json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-dns-operator"]), &decSpec)
+			err := json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-dns-operator"]), &decSpec)
+			if err != nil {
+				return err
+			}
 			dnsOperator.Spec = decSpec
 		}
 	}
@@ -294,7 +300,10 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 		// deserialize original dns.config/cluster
 		if metav1.HasAnnotation(instance.ObjectMeta, "original-dns-config") {
 			decSpec := configv1.DNSSpec{}
-			json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-dns-config"]), &decSpec)
+			err := json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-dns-config"]), &decSpec)
+			if err != nil {
+				return err
+			}
 			dnsConfig.Spec = decSpec
 		}
 	}
@@ -340,7 +349,10 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 		// deserialize original dns.operator/default
 		if _, ok := instance.ObjectMeta.Annotations["original-default-ingresscontroller"]; ok {
 			decSpec := operatorv1.IngressControllerSpec{}
-			json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-default-ingresscontroller"]), &decSpec)
+			err := json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-default-ingresscontroller"]), &decSpec)
+			if err != nil {
+				return err
+			}
 			defaultIngress.Spec = decSpec
 		}
 	}
@@ -403,7 +415,10 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 		// deserialize original apiserver-config
 		if metav1.HasAnnotation(instance.ObjectMeta, "original-apiserver-config") {
 			decSpec := configv1.APIServerSpec{}
-			json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-apiserver-config"]), &decSpec)
+			err := json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-apiserver-config"]), &decSpec)
+			if err != nil {
+				return err
+			}
 			apiserverConfig.Spec = decSpec
 		}
 	}
@@ -442,7 +457,10 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 			// deserialize original publishingstrategy
 			if metav1.HasAnnotation(instance.ObjectMeta, "original-publishingstrategy") {
 				decSpec := cloudingressv1alpha1.PublishingStrategySpec{}
-				json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-publishingstrategy"]), &decSpec)
+				err := json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-publishingstrategy"]), &decSpec)
+				if err != nil {
+					return err
+				}
 				publishingStrategy.Spec = decSpec
 			}
 		}
@@ -516,6 +534,9 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 			}
 			ctx := context.TODO()
 			err := r.client.List(ctx, routeList, listOpts...)
+			if err != nil {
+				return err
+			}
 			for _, rt := range routeList.Items {
 				err = r.client.Delete(ctx, &rt, client.GracePeriodSeconds(15))
 				if err != nil {
@@ -557,7 +578,10 @@ func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instan
 			fmt.Sprintf("Custom Domain (%s) Is Ready", domain),
 			customdomainv1alpha1.CustomDomainConditionReady,
 			customdomainv1alpha1.CustomDomainStateReady)
-		r.statusUpdate(reqLogger, instance)
+		err := r.statusUpdate(reqLogger, instance)
+		if err != nil {
+			return err
+		}
 	}
 	if crNeedsUpdate {
 		err = r.client.Update(context.TODO(), instance)

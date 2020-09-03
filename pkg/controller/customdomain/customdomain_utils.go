@@ -101,7 +101,10 @@ func FindCustomDomainCondition(conditions []customdomainv1alpha1.CustomDomainCon
 // finalizeCustomDomain cleans up once a CustomDomain CR is deleted
 func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain) error {
 	// restore the custom domain
-	modifyClusterDomain(r, reqLogger, instance, true)
+	err := modifyClusterDomain(r, reqLogger, instance, true)
+	if err != nil {
+		return err
+	}
 	reqLogger.Info("Successfully finalized customdomain")
 	return nil
 }
