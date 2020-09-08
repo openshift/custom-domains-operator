@@ -18,15 +18,16 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 )
 
 // TestCustomDomainController runs ReconcileCustomDomain.Reconcile() against a
 // fake client that tracks a CustomDomain object.
 func TestCustomDomainController(t *testing.T) {
 	// Set the logger to development mode for verbose logs.
-	logf.SetLogger(logf.ZapLogger(true))
+	logf.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	var (
 		name          = "cluster"
@@ -262,6 +263,9 @@ func TestCustomDomainController(t *testing.T) {
 		Name:      "router-certs",
 		Namespace: "openshift-config-managed",
 	}, actualRouterCerts)
+	if err != nil {
+		t.Fatalf("get router certs: (%v)", err)
+	}
 	if _, ok := actualRouterCerts.Data[domain]; !ok {
 		t.Errorf(fmt.Sprintf("Missing domain key from router-certs: (%v)", domain))
 	}
@@ -271,6 +275,9 @@ func TestCustomDomainController(t *testing.T) {
 	err = r.client.Get(context.TODO(), types.NamespacedName{
 		Name: "default",
 	}, actualDnsOperator)
+	if err != nil {
+		t.Fatalf("get dns: (%v)", err)
+	}
 	if actualDnsOperator.Spec.Servers[0].Name != name {
 		t.Errorf(fmt.Sprintf("CRD dns.operator/default name mismatch: (%v)", actualDnsOperator.Spec.Servers[0].Name))
 	}
@@ -284,6 +291,9 @@ func TestCustomDomainController(t *testing.T) {
 		Name:      "default",
 		Namespace: "openshift-ingress-operator",
 	}, actualDefaultIngress)
+	if err != nil {
+		t.Fatalf("get ingress: (%v)", err)
+	}
 	if actualDefaultIngress.Spec.Domain != domain {
 		t.Errorf(fmt.Sprintf("CRD ingresscontrollers.operator.openshift.io/default domain mismatch: (%v)", actualDefaultIngress.Spec.Domain))
 	}
@@ -294,6 +304,9 @@ func TestCustomDomainController(t *testing.T) {
 		Name:      "cluster",
 		Namespace: "",
 	}, actualIngressConfig)
+	if err != nil {
+		t.Fatalf("get ingress: (%v)", err)
+	}
 	if actualIngressConfig.Spec.Domain != domain {
 		t.Errorf(fmt.Sprintf("CRD ingresses.config.openshift.io/cluster domain mismatch: (%v)", actualIngressConfig.Spec.Domain))
 	}
@@ -304,6 +317,9 @@ func TestCustomDomainController(t *testing.T) {
 		Name:      name,
 		Namespace: namespace,
 	}, actualCustomDomain)
+	if err != nil {
+		t.Fatalf("get custom domain: (%v)", err)
+	}
 	if actualCustomDomain.ObjectMeta.Annotations == nil || actualCustomDomain.ObjectMeta.Annotations["original-domain"] != oldDomain {
 		t.Errorf(fmt.Sprintf("Problem with 'original-domain' annotation: (%+v)", actualCustomDomain.ObjectMeta.Annotations))
 	}
