@@ -61,7 +61,9 @@ metadata:
   name: cluster
 spec:
   domain: apps.<domain>
-  tlsSecret: custom-default-tls
+  certificate:
+    name: my-cert
+    namespace: my-project
 ")
 
 

@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/go-logr/logr"
+	operatorv1 "github.com/openshift/api/operator/v1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // UpdateConditionCheck tests whether a condition should be updated from the
@@ -98,13 +100,41 @@ func FindCustomDomainCondition(conditions []customdomainv1alpha1.CustomDomainCon
 	return nil
 }
 
-// finalizeCustomDomain cleans up once a CustomDomain CR is deleted
+// finalizeCustomDomain cleans up left over resources once a CustomDomain CR is deleted
 func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain) error {
-	// restore the custom domain
-	err := modifyClusterDomain(r, reqLogger, instance, true)
+	reqLogger.Info("Deleting old resources...")
+	// get and delete the secret in openshift-ingress
+	ingressSecret := &corev1.Secret{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{
+		Namespace: ingressNamespace,
+		Name:      instance.Name,
+	}, ingressSecret)
 	if err != nil {
+		reqLogger.Error(err, fmt.Sprintf("Failed to get %s secret", instance.Name))
 		return err
 	}
+	err = r.client.Delete(context.TODO(), ingressSecret)
+	if err != nil {
+		reqLogger.Error(err, fmt.Sprintf("Failed to delete %s secret", instance.Name))
+		return err
+	}
+
+	// get and delete the custom ingresscontroller
+	customIngress := &operatorv1.IngressController{}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Namespace: ingressOperatorNamespace,
+		Name:      instance.Name,
+	}, customIngress)
+	if err != nil {
+		reqLogger.Error(err, fmt.Sprintf("Failed to get %s ingresscontroller", instance.Name))
+		return err
+	}
+	err = r.client.Delete(context.TODO(), customIngress)
+	if err != nil {
+		reqLogger.Error(err, fmt.Sprintf("Failed to delete %s ingresscontroller", instance.Name))
+		return err
+	}
+
 	reqLogger.Info("Successfully finalized customdomain")
 	return nil
 }

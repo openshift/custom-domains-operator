@@ -2,20 +2,14 @@ package customdomain
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"reflect"
-	"strings"
 
 	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	routev1 "github.com/openshift/api/route/v1"
-	cloudingressv1alpha1 "github.com/openshift/cloud-ingress-operator/pkg/apis/cloudingress/v1alpha1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -28,6 +22,11 @@ import (
 )
 
 var log = logf.Log.WithName("controller_customdomain")
+
+const (
+	ingressNamespace         = "openshift-ingress"
+	ingressOperatorNamespace = "openshift-ingress-operator"
+)
 
 // Add creates a new CustomDomain Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
@@ -133,532 +132,129 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	}
 
 	// finally modify the custom domain
-	if err := modifyClusterDomain(r, reqLogger, instance, false); err != nil {
+	if err := createOrAddCustomAppsDomain(r, reqLogger, instance); err != nil {
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
 }
 
-// modifyClusterDomain modifies the cluster domain
-func modifyClusterDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain, finalize bool) error {
-	var (
-		cert          string
-		domain        string
-		crNeedsUpdate bool
-	)
-
-	// if we are restoring the original domain, get original state from annotations
-	if finalize {
-		domain = instance.ObjectMeta.Annotations["original-domain"]
-		cert = instance.ObjectMeta.Annotations["original-certificate"]
-	} else {
-		domain = instance.Spec.Domain
-		cert = instance.Spec.TLSSecret
-	}
-
-	if !finalize {
-		if instance.Status.State != customdomainv1alpha1.CustomDomainStateReady {
-			// Update the status on CustomDomain
-			SetCustomDomainStatus(
-				reqLogger,
-				instance,
-				fmt.Sprintf("Creating Custom Domain (%s)", domain),
-				customdomainv1alpha1.CustomDomainConditionCreating,
-				customdomainv1alpha1.CustomDomainStateNotReady)
-			err := r.statusUpdate(reqLogger, instance)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// look up tls secret (must exist in the openshift-ingress namespace)
-	tlsSecret := &corev1.Secret{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{
-		Namespace: "openshift-ingress",
-		Name:      cert,
-	}, tlsSecret)
-	if err != nil {
-		// secret needed to continue
-		reqLogger.Info(fmt.Sprintf("Error getting secret (%v)!", cert))
+// createOrAddCustomAppsDomain creates the apps custom domain
+func createOrAddCustomAppsDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain) error {
+	if instance.Status.State != customdomainv1alpha1.CustomDomainStateReady {
 		// Update the status on CustomDomain
 		SetCustomDomainStatus(
 			reqLogger,
 			instance,
-			fmt.Sprintf("TLS Secret (%s) Not Found", cert),
+			fmt.Sprintf("Creating Apps Custom Domain (%s)", instance.Spec.Domain),
+			customdomainv1alpha1.CustomDomainConditionCreating,
+			customdomainv1alpha1.CustomDomainStateNotReady)
+		err := r.statusUpdate(reqLogger, instance)
+		if err != nil {
+			return err
+		}
+	}
+
+	// look up secret
+	userSecret := &corev1.Secret{}
+	err := r.client.Get(context.TODO(), types.NamespacedName{
+		Namespace: instance.Spec.Certificate.Namespace,
+		Name:      instance.Spec.Certificate.Name,
+	}, userSecret)
+	if err != nil {
+		reqLogger.Info(fmt.Sprintf("Error getting secret (%v)!", instance.Spec.Certificate.Name))
+		// Update the status on CustomDomain
+		SetCustomDomainStatus(
+			reqLogger,
+			instance,
+			fmt.Sprintf("TLS Secret (%s) Not Found", instance.Spec.Certificate.Name),
 			customdomainv1alpha1.CustomDomainConditionSecretNotFound,
 			customdomainv1alpha1.CustomDomainStateNotReady)
 		_ = r.statusUpdate(reqLogger, instance)
 		return err
 	}
 
-	// modify router-certs for auth operator
-	// TODO(drow): Determine is this is still needed
-	routerCert := &corev1.Secret{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
-		Namespace: "openshift-config-managed",
-		Name:      "router-certs",
-	}, routerCert)
-	if err != nil {
-		// Error reading the object - requeue the request.
-		reqLogger.Error(err, "Error getting router-certs")
-		SetCustomDomainStatus(
-			reqLogger,
-			instance,
-			"Error getting router-certs",
-			customdomainv1alpha1.CustomDomainConditionRouterCertsError,
-			customdomainv1alpha1.CustomDomainStateNotReady)
-		_ = r.statusUpdate(reqLogger, instance)
-		return err
-	}
-	if _, ok := routerCert.Data[domain]; !ok {
-		certData := string(tlsSecret.Data[corev1.TLSCertKey])
-		keyData := string(tlsSecret.Data[corev1.TLSPrivateKeyKey])
-		routerCert.Data[domain] = []byte(certData + keyData)
-		err = r.client.Update(context.TODO(), routerCert)
-		if err != nil {
-			log.Error(err, "Error updating router-certs")
-			SetCustomDomainStatus(
-				reqLogger,
-				instance,
-				"Error updating router-certs",
-				customdomainv1alpha1.CustomDomainConditionRouterCertsError,
-				customdomainv1alpha1.CustomDomainStateNotReady)
-			_ = r.statusUpdate(reqLogger, instance)
-		}
-	}
+	// set the secret name to be the name of the customdomain instance
+	secretName := instance.Name
 
-	// modify dns.operator.openshift.io/default on creation
-	// TODO(drow): restore original dns.operator.openshift.io/default
-	dnsOperator := &operatorv1.DNS{}
+	// create or update secret in openshift-ingress
+	ingressSecret := &corev1.Secret{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
-		Name: "default",
-	}, dnsOperator)
+		Namespace: ingressNamespace,
+		Name:      secretName,
+	}, ingressSecret)
+	ingressSecret.Name = secretName
+	ingressSecret.Namespace = ingressNamespace
+	ingressSecret.Data = userSecret.Data
+	ingressSecret.Type = userSecret.Type
 	if err != nil {
-		reqLogger.Error(err, "Error getting dns.operator.openshift.io/default")
-		// Error reading the object - requeue the request.
-		return err
-	}
-	if !finalize {
-		dnsServer := &operatorv1.Server{
-			Name:  instance.Name,
-			Zones: []string{domain},
-			ForwardPlugin: operatorv1.ForwardPlugin{
-				Upstreams: []string{"8.8.8.8"},
-			},
-		}
-		// serialize and store original dns.operator/default
-		if !metav1.HasAnnotation(instance.ObjectMeta, "original-dns-operator") {
-			encSpec, _ := json.Marshal(dnsOperator.Spec)
-			metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-dns-operator", string(encSpec))
-		}
-		if dnsOperator.Spec.Servers != nil && len(dnsOperator.Spec.Servers) > 0 {
-			dnsOperator.Spec.Servers[0] = *dnsServer
-		} else {
-			dnsOperator.Spec.Servers = []operatorv1.Server{*dnsServer}
+		err = r.client.Create(context.TODO(), ingressSecret)
+		if err != nil {
+			reqLogger.Error(err, "Error creating custom certificate secret")
+			return err
 		}
 	} else {
-		// deserialize original dns.operator/default
-		if metav1.HasAnnotation(instance.ObjectMeta, "original-dns-operator") {
-			decSpec := operatorv1.DNSSpec{}
-			err := json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-dns-operator"]), &decSpec)
-			if err != nil {
-				return err
-			}
-			dnsOperator.Spec = decSpec
+		err = r.client.Update(context.TODO(), ingressSecret)
+		if err != nil {
+			reqLogger.Error(err, "Error updating custom certificate secret")
+			return err
 		}
 	}
-	err = r.client.Update(context.TODO(), dnsOperator)
-	if err != nil {
-		log.Error(err, "Error restoring dns.operator.openshift.io/default")
-	}
 
-	// modify dnses.config.openshift.io/cluster
+	// get dnses.config.openshift.io/cluster for installed base domain
 	dnsConfig := &configv1.DNS{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
 		Name: "cluster",
 	}, dnsConfig)
 	if err != nil {
-		reqLogger.Error(err, "Error getting dnses.config.openshift.io/cluster")
-		// Error reading the object - requeue the request.
-		return err
-	}
-	if !finalize {
-		// serialize and store original dns.config/cluster
-		if !metav1.HasAnnotation(instance.ObjectMeta, "original-dns-config") {
-			encSpec, _ := json.Marshal(dnsOperator.Spec)
-			metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-dns-config", string(encSpec))
-			crNeedsUpdate = true
-		}
-		// get top-level domain name
-		baseDomain := domain[strings.IndexByte(domain, '.')+1:]
-		dnsConfig.Spec.BaseDomain = baseDomain
-		// we must set the private and public zones to nil to tell the ingress operator to not manage the DNS
-		dnsConfig.Spec.PrivateZone = nil
-		dnsConfig.Spec.PublicZone = nil
-	} else {
-		// deserialize original dns.config/cluster
-		if metav1.HasAnnotation(instance.ObjectMeta, "original-dns-config") {
-			decSpec := configv1.DNSSpec{}
-			err := json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-dns-config"]), &decSpec)
-			if err != nil {
-				return err
-			}
-			dnsConfig.Spec = decSpec
-		}
-	}
-	err = r.client.Update(context.TODO(), dnsConfig)
-	if err != nil {
-		log.Error(err, "Error updating dnses.config.openshift.io/cluster")
-	}
-
-	// modify ingresscontrollers.openshift.io/default
-	defaultIngress := &operatorv1.IngressController{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
-		Namespace: "openshift-ingress-operator",
-		Name:      "default",
-	}, defaultIngress)
-	if err != nil {
-		reqLogger.Error(err, "Error getting default ingresscontroller")
-		// Error reading the object - requeue the request.
-		return err
-	}
-	// Only update annotations when creating new CustomDomain
-	if !finalize {
-		if !metav1.HasAnnotation(instance.ObjectMeta, "original-domain") {
-			metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-domain", defaultIngress.Spec.Domain)
-			crNeedsUpdate = true
-		}
-		if !metav1.HasAnnotation(instance.ObjectMeta, "original-default-ingresscontroller") {
-			encSpec, _ := json.Marshal(defaultIngress.Spec)
-			metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-default-ingresscontroller", string(encSpec))
-			crNeedsUpdate = true
-		}
-		defaultIngress.Spec.Domain = domain
-		if defaultIngress.Spec.DefaultCertificate != nil {
-			if !metav1.HasAnnotation(instance.ObjectMeta, "original-certificate") {
-				metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-certificate", defaultIngress.Spec.DefaultCertificate.Name)
-				crNeedsUpdate = true
-			}
-			defaultIngress.Spec.DefaultCertificate.Name = cert
-		} else {
-			defaultIngress.Spec.DefaultCertificate = &corev1.LocalObjectReference{}
-			defaultIngress.Spec.DefaultCertificate.Name = cert
-		}
-	} else {
-		// deserialize original dns.operator/default
-		if _, ok := instance.ObjectMeta.Annotations["original-default-ingresscontroller"]; ok {
-			decSpec := operatorv1.IngressControllerSpec{}
-			err := json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-default-ingresscontroller"]), &decSpec)
-			if err != nil {
-				return err
-			}
-			defaultIngress.Spec = decSpec
-		}
-	}
-	err = r.client.Update(context.TODO(), defaultIngress)
-	if err != nil {
-		reqLogger.Error(err, "Error updating default ingress controller")
+		reqLogger.Error(err, "Error getting dns.config/cluster")
 		return err
 	}
 
-	// ingresses.config.openshift.io/cluster
-	ingressConfig := &configv1.Ingress{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
-		Name: "cluster",
-	}, ingressConfig)
-	if err != nil {
-		reqLogger.Error(err, "Error getting ingresses.config.openshift.io/cluster")
-		// Error reading the object - requeue the request.
-		return err
-	}
-	ingressConfig.Spec.Domain = domain
-	err = r.client.Update(context.TODO(), ingressConfig)
-	if err != nil {
-		reqLogger.Error(err, "Error updating ingresses.config.openshift.io/cluster")
-		return err
-	}
+	// set the ingress domain to be a subdomain under the cluster's installed basedomain
+	// such that the record is added to the zone and external DNS can point to it
+	ingressDomain := fmt.Sprintf("%s.%s", instance.Name, dnsConfig.Spec.BaseDomain)
+	ingressName := instance.Name
 
-	// modify apiservers.config.openshift.io/cluster to support login on new domain
-	apiserverConfig := &configv1.APIServer{}
+	// create or update ingresscontrollers.openshift.io/custom
+	customIngress := &operatorv1.IngressController{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
-		Name: "cluster",
-	}, apiserverConfig)
-	if err != nil {
-		reqLogger.Error(err, "Error getting apiservers.config.openshift.io/cluster")
-		// Error reading the object - requeue the request.
-		return err
-	}
-	if !finalize {
-		if !metav1.HasAnnotation(instance.ObjectMeta, "original-apiserver-config") {
-			encSpec, _ := json.Marshal(apiserverConfig.Spec)
-			metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-apiserver-config", string(encSpec))
-			crNeedsUpdate = true
-		}
-		found := false
-		for _, item := range apiserverConfig.Spec.ServingCerts.NamedCertificates {
-			if contains(item.Names, "api."+domain) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			namedCert := configv1.APIServerNamedServingCert{
-				Names: []string{string("api." + domain)},
-				ServingCertificate: configv1.SecretNameReference{
-					Name: cert,
-				},
-			}
-			apiserverConfig.Spec.ServingCerts.NamedCertificates = append(apiserverConfig.Spec.ServingCerts.NamedCertificates, namedCert)
-		}
+		Namespace: ingressOperatorNamespace,
+		Name:      ingressName,
+	}, customIngress)
+	customIngress.Name = ingressName
+	customIngress.Namespace = ingressOperatorNamespace
+	customIngress.Spec.Domain = ingressDomain
+	if customIngress.Spec.DefaultCertificate != nil {
+		customIngress.Spec.DefaultCertificate.Name = secretName
 	} else {
-		// deserialize original apiserver-config
-		if metav1.HasAnnotation(instance.ObjectMeta, "original-apiserver-config") {
-			decSpec := configv1.APIServerSpec{}
-			err := json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-apiserver-config"]), &decSpec)
-			if err != nil {
-				return err
-			}
-			apiserverConfig.Spec = decSpec
-		}
+		customIngress.Spec.DefaultCertificate = &corev1.LocalObjectReference{Name: secretName}
 	}
-	err = r.client.Update(context.TODO(), apiserverConfig)
 	if err != nil {
-		reqLogger.Error(err, "Error updating apiservers.config.openshift.io/cluster")
-		return err
-	}
-
-	// modify publishingstrategies.cloudingress.managed.openshift.io/publishingstrategy
-	publishingStrategy := &cloudingressv1alpha1.PublishingStrategy{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
-		Namespace: "openshift-cloud-ingress-operator",
-		Name:      "publishingstrategy",
-	}, publishingStrategy)
-	if err != nil {
-		reqLogger.Error(err, "Error getting default publishingstrategy")
-	} else {
-		if !finalize {
-			if !metav1.HasAnnotation(instance.ObjectMeta, "original-publishingstrategy") {
-				encSpec, _ := json.Marshal(publishingStrategy.Spec)
-				metav1.SetMetaDataAnnotation(&instance.ObjectMeta, "original-publishingstrategy", string(encSpec))
-				crNeedsUpdate = true
-			}
-			appIngress := &cloudingressv1alpha1.ApplicationIngress{
-				Listening: "external",
-				Default:   true,
-				DNSName:   domain,
-				Certificate: corev1.SecretReference{
-					Name:      cert,
-					Namespace: "openshift-ingress",
-				},
-			}
-			publishingStrategy.Spec.ApplicationIngress[0] = *appIngress
-		} else {
-			// deserialize original publishingstrategy
-			if metav1.HasAnnotation(instance.ObjectMeta, "original-publishingstrategy") {
-				decSpec := cloudingressv1alpha1.PublishingStrategySpec{}
-				err := json.Unmarshal([]byte(instance.ObjectMeta.Annotations["original-publishingstrategy"]), &decSpec)
-				if err != nil {
-					return err
-				}
-				publishingStrategy.Spec = decSpec
-			}
-		}
-		err = r.client.Update(context.TODO(), publishingStrategy)
+		err = r.client.Create(context.TODO(), customIngress)
 		if err != nil {
-			reqLogger.Error(err, "Error updating publishingstrategy")
-		}
-	}
-
-	// modify 'system' routes Host fields
-	systemRoute := &routev1.Route{}
-	for n, ns := range systemRoutes {
-		err = r.client.Get(context.TODO(), types.NamespacedName{
-			Name:      n,
-			Namespace: ns,
-		}, systemRoute)
-		if err != nil {
-			reqLogger.Error(err, fmt.Sprintf("Error getting route %v in namespace %v", n, ns))
-			// Error reading the object - requeue the request.
+			reqLogger.Error(err, "Error creating custom ingress controller")
 			return err
 		}
-		if !finalize {
-			// If we are not restoring the original domain, we need to maintain the original routes for access
-			// look up the old tls secret (must exist in the openshift-ingress namespace)
-			originalSecret := &corev1.Secret{}
-			err := r.client.Get(context.TODO(), types.NamespacedName{
-				Namespace: "openshift-ingress",
-				Name:      instance.ObjectMeta.Annotations["original-certificate"],
-			}, originalSecret)
-			if err != nil {
-				// secret needed to continue
-				reqLogger.Error(err, fmt.Sprintf("Error getting original secret (%s)!", instance.ObjectMeta.Annotations["original-certificate"]))
-				return err
-			}
-			newRoute := duplicateRoute(systemRoute, originalSecret, instance.ObjectMeta.Annotations["original-domain"])
-			// Check if the route exists
-			existingRoute := &routev1.Route{}
-			err = r.client.Get(context.TODO(), types.NamespacedName{
-				Name:      newRoute.Name,
-				Namespace: newRoute.Namespace,
-			}, existingRoute)
-
-			if err != nil {
-				// Create route
-				reqLogger.Info(fmt.Sprintf("Creating original Route %v with host %v", newRoute.Name, newRoute.Spec.Host))
-				_, err = createRoute(reqLogger, context.TODO(), r.client, newRoute)
-				if err != nil {
-					log.Error(err, "Error creating route")
-					return err
-				}
-			} else {
-				if !reflect.DeepEqual(existingRoute.Spec.TLS, newRoute.Spec.TLS) ||
-					existingRoute.Spec.Host != newRoute.Spec.Host {
-					// Update existingRoute with TLS and domain fields from newRoute
-					existingRoute.Spec.TLS = newRoute.Spec.TLS
-					existingRoute.Spec.Host = newRoute.Spec.Host
-					reqLogger.Info(fmt.Sprintf("Updating Route %v with host %v", newRoute.Name, newRoute.Spec.Host))
-					err = r.client.Update(context.TODO(), existingRoute)
-					if err != nil {
-						log.Error(err, "Error updating route")
-					}
-				} else {
-					reqLogger.Info(fmt.Sprintf("Route %v with host %v already exists", newRoute.Name, newRoute.Spec.Host))
-				}
-			}
-		} else {
-			// Delete the duplicated original routes if we are restoring the original domain
-			routeList := &routev1.RouteList{}
-			listOpts := []client.ListOption{
-				client.MatchingLabels(labelsForResource(domain)),
-			}
-			ctx := context.TODO()
-			err := r.client.List(ctx, routeList, listOpts...)
-			if err != nil {
-				return err
-			}
-			for _, rt := range routeList.Items {
-				err = r.client.Delete(ctx, &rt, client.GracePeriodSeconds(15))
-				if err != nil {
-					reqLogger.Error(err, fmt.Sprintf("Failed to call client.Delete() for %v", rt.Name))
-				}
-			}
-		}
-
-		// Modify the host portion of the existing routes
-		// We must delete and recreate as the Host field is immutable
-		if !strings.Contains(systemRoute.Spec.Host, domain) {
-			systemRouteCopy := &routev1.Route{}
-			systemRouteCopy.Spec = systemRoute.Spec
-			systemRouteCopy.ObjectMeta = metav1.ObjectMeta{
-				Name:      systemRoute.ObjectMeta.Name,
-				Namespace: systemRoute.ObjectMeta.Namespace,
-				Labels:    systemRoute.ObjectMeta.Labels,
-			}
-			hostPart := strings.Split(systemRoute.Spec.Host, ".")[0]
-			systemRouteCopy.Spec.Host = hostPart + "." + domain
-
-			err = r.client.Delete(context.TODO(), systemRoute)
-			if err != nil {
-				reqLogger.Error(err, "Error deleting route "+systemRoute.Name)
-			}
-
-			err = r.client.Create(context.TODO(), systemRouteCopy)
-			if err != nil {
-				reqLogger.Error(err, "Error creating route "+systemRouteCopy.Name)
-			}
-		}
-	}
-
-	if !finalize {
-		// Update the status on CustomDomain
-		SetCustomDomainStatus(
-			reqLogger,
-			instance,
-			fmt.Sprintf("Custom Domain (%s) Is Ready", domain),
-			customdomainv1alpha1.CustomDomainConditionReady,
-			customdomainv1alpha1.CustomDomainStateReady)
-		err := r.statusUpdate(reqLogger, instance)
+	} else {
+		err = r.client.Update(context.TODO(), customIngress)
 		if err != nil {
+			reqLogger.Error(err, "Error updating custom ingress controller")
 			return err
 		}
 	}
-	if crNeedsUpdate {
-		err = r.client.Update(context.TODO(), instance)
-		if err != nil {
-			reqLogger.Error(err, "Error updating instance")
-			return err
-		}
+	// Set the DNS record in the status
+	instance.Status.DNSRecord = fmt.Sprintf("*.%s", ingressDomain)
+
+	// Update the status on CustomDomain
+	SetCustomDomainStatus(
+		reqLogger,
+		instance,
+		fmt.Sprintf("Custom Apps Domain (%s) Is Ready", instance.Spec.Domain),
+		customdomainv1alpha1.CustomDomainConditionReady,
+		customdomainv1alpha1.CustomDomainStateReady)
+	err = r.statusUpdate(reqLogger, instance)
+	if err != nil {
+		return err
 	}
 	return nil
-}
-
-// createRoute is a function which creates the route
-func createRoute(reqLogger logr.Logger, ctx context.Context, client client.Client, r *routev1.Route) (*routev1.Route, error) {
-	if err := client.Create(ctx, r); err != nil {
-		if err != nil {
-			if !errors.IsAlreadyExists(err) {
-				return nil, err
-			}
-			reqLogger.Info(fmt.Sprintf("Route object already exists (%v, %v)", r.Name, r.Namespace))
-			return r, nil
-		}
-	}
-	reqLogger.Info(fmt.Sprintf("Route object created (%v, %v)", r.Name, r.Namespace))
-	return r, nil
-}
-
-// duplicateRoute creates a route to proxy to an existing system route
-func duplicateRoute(srcRoute *routev1.Route, tlsSecret *corev1.Secret, domain string) *routev1.Route {
-	labels := labelsForResource(domain)
-	for k, v := range srcRoute.ObjectMeta.Labels {
-		labels[k] = v
-	}
-	destRoute := &routev1.Route{}
-	destRoute.TypeMeta = metav1.TypeMeta{
-		Kind:       "Route",
-		APIVersion: "route.openshift.io/v1",
-	}
-	destRoute.ObjectMeta = metav1.ObjectMeta{
-		Name:      srcRoute.ObjectMeta.Name + "-original",
-		Namespace: srcRoute.ObjectMeta.Namespace,
-		Labels:    labels,
-	}
-	tlsConfig := createTlsConfig(tlsSecret)
-	destRoute.Spec = srcRoute.Spec
-	hostPart := strings.Split(srcRoute.Spec.Host, ".")[0]
-	destRoute.Spec.Host = hostPart + "." + domain
-	destRoute.Spec.TLS = tlsConfig
-	if srcRoute.Spec.TLS != nil {
-		if srcRoute.Spec.TLS.Termination != routev1.TLSTerminationPassthrough {
-			destRoute.Spec.TLS.Termination = srcRoute.Spec.TLS.Termination
-			destRoute.Spec.TLS.InsecureEdgeTerminationPolicy = srcRoute.Spec.TLS.InsecureEdgeTerminationPolicy
-		} else {
-			destRoute.Spec.TLS.Termination = routev1.TLSTerminationEdge
-			destRoute.Spec.TLS.InsecureEdgeTerminationPolicy = routev1.InsecureEdgeTerminationPolicyRedirect
-		}
-	}
-	return destRoute
-}
-
-// createTlsConfig creates a new TLSConfig object
-func createTlsConfig(tlsSecret *corev1.Secret) *routev1.TLSConfig {
-	newTlsConfig := &routev1.TLSConfig{}
-	// Secret must be of kubernetes.io/tls type that contains a tls.key and tls.crt
-	if tlsSecret.Data != nil && tlsSecret.Type == corev1.SecretTypeTLS {
-		keyData, ok := tlsSecret.Data[corev1.TLSPrivateKeyKey]
-		if ok {
-			newTlsConfig.Key = string(keyData)
-		}
-		crtData, ok := tlsSecret.Data[corev1.TLSCertKey]
-		if ok {
-			newTlsConfig.Certificate = string(crtData)
-		}
-	}
-	return newTlsConfig
-}
-
-// labelsForResource creates a simple set of labels for all resources
-func labelsForResource(name string) map[string]string {
-	return map[string]string{"custom-domains-operator-owner": name}
 }

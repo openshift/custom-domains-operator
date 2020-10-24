@@ -34,26 +34,30 @@ operator-sdk run --local --namespace ''
 #### Build and Deploy To Cluster
 Choose public container registry e.g. 'quay.io/acme'.
 Build and push the image, then update the operator deployment manifest.
+
+Example:
 ```
-operator-sdk build quay.io/acme/custom-domain-operator
-docker push quay.io/acme/custom-domain-operator
-sed -i 's|REPLACE_ME|quay.io/acme|g' deploy/operator.yaml
-oc apply -f deploy/operator.yaml
+oc apply -f deploy/crds/managed.openshift.io_customdomains_crd.yaml
+oc apply -f deploy/
+IMAGE_REPOSITORY=<your quay org/user> make docker-build docker-push
+oc set image -n openshift-custom-domains-operator deployment/custom-domains-operator custom-domains-operator=quay.io/dustman9000/custom-domains-operator:v0.1.29-a48b301e
 ```
 
 #### Add Secrets and CustomDomain CRD
+
+Example:
 ```
 oc new-project acme-apps
-# secret must be created in the 'openshift-ingress' and 'openshift-config' namespace
-oc -n openshift-ingress create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
-oc -n openshift-config create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
+oc create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
 oc apply -f <(echo "
 apiVersion: managed.openshift.io/v1alpha1
 kind: CustomDomain
 metadata:
-  name: cluster
+  name: acme
 spec:
   domain: apps.acme.io
-  tlsSecret: acme-tls
+  certificate:
+    name: acme-tls
+    namespace: acme-apps
 ")
 ```

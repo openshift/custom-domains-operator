@@ -5,7 +5,7 @@ metadata:
 subjects:
 - kind: ServiceAccount
   name: custom-domains-operator
-  namespace: openshift-operators
+  namespace: openshift-custom-domains-operator
 roleRef:
   kind: ClusterRole
   name: custom-domains-operator
