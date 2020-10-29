@@ -1,6 +1,6 @@
 # Openshift Dedicated Custom Domain Operator
 
-This allows for a custom domain with custom certificate to be installed as a day-2 operation.
+This operator sets up a custom domain with custom certificate to be installed as a day-2 operation.
 
 ### Prerequisites
 
@@ -18,7 +18,7 @@ sudo mv operator-sdk-v0.16.0-x86_64-apple-darwin /usr/local/bin/operator-sdk
 sudo chmod a+x /usr/local/bin/operator-sdk
 ```
 
-### Building And Deploying And Testing
+### Building And Deploying
 
 #### Setup
 Create Custom Resource Definition (CRD)
@@ -37,27 +37,15 @@ Build and push the image, then update the operator deployment manifest.
 
 Example:
 ```
+# deploy manifests
 oc apply -f deploy/crds/managed.openshift.io_customdomains_crd.yaml
 oc apply -f deploy/
-IMAGE_REPOSITORY=<your quay org/user> make docker-build docker-push
+# build
+make docker-build docker-push
+# update image with image in build output
 oc set image -n openshift-custom-domains-operator deployment/custom-domains-operator custom-domains-operator=quay.io/dustman9000/custom-domains-operator:v0.1.29-a48b301e
 ```
 
-#### Add Secrets and CustomDomain CRD
 
-Example:
-```
-oc new-project acme-apps
-oc create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
-oc apply -f <(echo "
-apiVersion: managed.openshift.io/v1alpha1
-kind: CustomDomain
-metadata:
-  name: acme
-spec:
-  domain: apps.acme.io
-  certificate:
-    name: acme-tls
-    namespace: acme-apps
-")
-```
+## Testing
+See [TESTING](TESTING.md)

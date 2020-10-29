@@ -3,10 +3,11 @@ package customdomain
 import (
 	"context"
 	"fmt"
+	"time"
 
-	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	operatoringressv1 "github.com/openshift/api/operatoringress/v1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -26,6 +27,8 @@ var log = logf.Log.WithName("controller_customdomain")
 const (
 	ingressNamespace         = "openshift-ingress"
 	ingressOperatorNamespace = "openshift-ingress-operator"
+	dnsConfigName            = "cluster"
+	requeueWaitMinutes       = 1
 )
 
 // Add creates a new CustomDomain Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -52,16 +55,6 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 	if err != nil {
 		return err
 	}
-
-	// TODO(drow): Add more watches to default LB service and watch for changes.
-	err = c.Watch(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
-		IsController: true,
-		OwnerType:    &customdomainv1alpha1.CustomDomain{},
-	})
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -131,15 +124,6 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		}
 	}
 
-	// finally modify the custom domain
-	if err := createOrAddCustomAppsDomain(r, reqLogger, instance); err != nil {
-		return reconcile.Result{}, err
-	}
-	return reconcile.Result{}, nil
-}
-
-// createOrAddCustomAppsDomain creates the apps custom domain
-func createOrAddCustomAppsDomain(r *ReconcileCustomDomain, reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain) error {
 	if instance.Status.State != customdomainv1alpha1.CustomDomainStateReady {
 		// Update the status on CustomDomain
 		SetCustomDomainStatus(
@@ -150,13 +134,13 @@ func createOrAddCustomAppsDomain(r *ReconcileCustomDomain, reqLogger logr.Logger
 			customdomainv1alpha1.CustomDomainStateNotReady)
 		err := r.statusUpdate(reqLogger, instance)
 		if err != nil {
-			return err
+			return reconcile.Result{}, err
 		}
 	}
 
 	// look up secret
 	userSecret := &corev1.Secret{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.client.Get(context.TODO(), types.NamespacedName{
 		Namespace: instance.Spec.Certificate.Namespace,
 		Name:      instance.Spec.Certificate.Name,
 	}, userSecret)
@@ -170,44 +154,42 @@ func createOrAddCustomAppsDomain(r *ReconcileCustomDomain, reqLogger logr.Logger
 			customdomainv1alpha1.CustomDomainConditionSecretNotFound,
 			customdomainv1alpha1.CustomDomainStateNotReady)
 		_ = r.statusUpdate(reqLogger, instance)
-		return err
+		return reconcile.Result{}, err
 	}
 
 	// set the secret name to be the name of the customdomain instance
 	secretName := instance.Name
 
-	// create or update secret in openshift-ingress
+	// create secret in the openshift-ingress namespace
 	ingressSecret := &corev1.Secret{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
 		Namespace: ingressNamespace,
 		Name:      secretName,
 	}, ingressSecret)
-	ingressSecret.Name = secretName
-	ingressSecret.Namespace = ingressNamespace
-	ingressSecret.Data = userSecret.Data
-	ingressSecret.Type = userSecret.Type
 	if err != nil {
-		err = r.client.Create(context.TODO(), ingressSecret)
-		if err != nil {
-			reqLogger.Error(err, "Error creating custom certificate secret")
-			return err
+		if errors.IsNotFound(err) {
+			ingressSecret.Name = secretName
+			ingressSecret.Namespace = ingressNamespace
+			ingressSecret.Data = userSecret.Data
+			ingressSecret.Type = userSecret.Type
+			err = r.client.Create(context.TODO(), ingressSecret)
+			if err != nil {
+				reqLogger.Error(err, "Error creating custom certificate secret")
+				return reconcile.Result{}, err
+			}
 		}
 	} else {
-		err = r.client.Update(context.TODO(), ingressSecret)
-		if err != nil {
-			reqLogger.Error(err, "Error updating custom certificate secret")
-			return err
-		}
+		reqLogger.Info(fmt.Sprintf("Certificate secret %s already exists in the %s namespace", secretName, ingressNamespace))
 	}
 
-	// get dnses.config.openshift.io/cluster for installed base domain
+	// get dnses.config.openshift.io/cluster for base domain
 	dnsConfig := &configv1.DNS{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
-		Name: "cluster",
+		Name: dnsConfigName,
 	}, dnsConfig)
 	if err != nil {
-		reqLogger.Error(err, "Error getting dns.config/cluster")
-		return err
+		reqLogger.Error(err, fmt.Sprintf("Error getting dns.config/%s", dnsConfigName))
+		return reconcile.Result{}, err
 	}
 
 	// set the ingress domain to be a subdomain under the cluster's installed basedomain
@@ -215,35 +197,50 @@ func createOrAddCustomAppsDomain(r *ReconcileCustomDomain, reqLogger logr.Logger
 	ingressDomain := fmt.Sprintf("%s.%s", instance.Name, dnsConfig.Spec.BaseDomain)
 	ingressName := instance.Name
 
-	// create or update ingresscontrollers.openshift.io/custom
+	// create new ingresscontrollers.openshift.io
 	customIngress := &operatorv1.IngressController{}
 	err = r.client.Get(context.TODO(), types.NamespacedName{
 		Namespace: ingressOperatorNamespace,
 		Name:      ingressName,
 	}, customIngress)
-	customIngress.Name = ingressName
-	customIngress.Namespace = ingressOperatorNamespace
-	customIngress.Spec.Domain = ingressDomain
-	if customIngress.Spec.DefaultCertificate != nil {
-		customIngress.Spec.DefaultCertificate.Name = secretName
-	} else {
-		customIngress.Spec.DefaultCertificate = &corev1.LocalObjectReference{Name: secretName}
-	}
 	if err != nil {
-		err = r.client.Create(context.TODO(), customIngress)
-		if err != nil {
-			reqLogger.Error(err, "Error creating custom ingress controller")
-			return err
+		if errors.IsNotFound(err) {
+			customIngress.Name = ingressName
+			customIngress.Namespace = ingressOperatorNamespace
+			customIngress.Spec.Domain = ingressDomain
+			if customIngress.Spec.DefaultCertificate != nil {
+				customIngress.Spec.DefaultCertificate.Name = secretName
+			} else {
+				customIngress.Spec.DefaultCertificate = &corev1.LocalObjectReference{Name: secretName}
+			}
+			err = r.client.Create(context.TODO(), customIngress)
+			if err != nil {
+				reqLogger.Error(err, fmt.Sprintf("Error creating ingresscontroller %s in %s namespace", ingressName, ingressOperatorNamespace))
+				return reconcile.Result{}, err
+			}
 		}
 	} else {
-		err = r.client.Update(context.TODO(), customIngress)
-		if err != nil {
-			reqLogger.Error(err, "Error updating custom ingress controller")
-			return err
-		}
+		reqLogger.Info(fmt.Sprintf("The ingresscontroller %s already exists in the %s namespace", ingressName, ingressOperatorNamespace))
 	}
-	// Set the DNS record in the status
-	instance.Status.DNSRecord = fmt.Sprintf("*.%s", ingressDomain)
+
+	// Obtain the dnsRecord to set in the CR status for final completion, requeue if not available
+	dnsRecord := &operatoringressv1.DNSRecord{}
+	dnsRecordName := fmt.Sprintf("%s-wildcard", instance.Name)
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Namespace: ingressOperatorNamespace,
+		Name:      dnsRecordName,
+	}, dnsRecord)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// requeue and wait for record
+			return reconcile.Result{Requeue: true, RequeueAfter: time.Duration(requeueWaitMinutes) * time.Minute}, nil
+		}
+		return reconcile.Result{}, err
+	}
+
+	// Set the DNS record in the status from the actual DNS record created by ingress operator
+	reqLogger.Info(fmt.Sprintf("DNSRecord %s created with value %s", dnsRecordName, dnsRecord.Spec.DNSName))
+	instance.Status.DNSRecord = dnsRecord.Spec.DNSName
 
 	// Update the status on CustomDomain
 	SetCustomDomainStatus(
@@ -254,7 +251,7 @@ func createOrAddCustomAppsDomain(r *ReconcileCustomDomain, reqLogger logr.Logger
 		customdomainv1alpha1.CustomDomainStateReady)
 	err = r.statusUpdate(reqLogger, instance)
 	if err != nil {
-		return err
+		return reconcile.Result{}, err
 	}
-	return nil
+	return reconcile.Result{}, nil
 }

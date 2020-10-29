@@ -11,6 +11,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
+	operatoringressv1 "github.com/openshift/api/operatoringress/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -83,11 +84,23 @@ func TestCustomDomainController(t *testing.T) {
 		},
 	}
 
+	// dns.config.openshift.io/cluster
+	dnsRecord := &operatoringressv1.DNSRecord{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      instanceName + "-wildcard",
+			Namespace: ingressOperatorNamespace,
+		},
+		Spec: operatoringressv1.DNSRecordSpec{
+			DNSName: "*." + instanceName + "." + clusterDomain,
+		},
+	}
+
 	// Objects to track in the fake client.
 	objs := []runtime.Object{
 		customdomain,
 		userSecret,
 		dnsConfig,
+		dnsRecord,
 	}
 
 	// Register operator types with the runtime scheme.
@@ -101,6 +114,11 @@ func TestCustomDomainController(t *testing.T) {
 	// Add Openshift operator v1 scheme
 	if err := operatorv1.AddToScheme(s); err != nil {
 		t.Fatalf("Unable to add operatorv1 scheme: (%v)", err)
+	}
+
+	// Add Openshift operatoringress v1 scheme
+	if err := operatoringressv1.AddToScheme(s); err != nil {
+		t.Fatalf("Unable to add operatoringressv1 scheme: (%v)", err)
 	}
 
 	// Add Openshift config v1 scheme
@@ -176,8 +194,7 @@ func TestCustomDomainController(t *testing.T) {
 		t.Errorf(fmt.Sprintf("Status.State does not equal (%s)", string(customdomainv1alpha1.CustomDomainStateReady)))
 	}
 
-	// Reconcile again so Reconcile() checks routes and updates the CustomDomain
-	// resources' Status.
+	// Reconcile again so Reconcile() and check result
 	res, err = r.Reconcile(req)
 	if err != nil {
 		t.Fatalf("reconcile: (%v)", err)

@@ -175,3 +175,12 @@ rules:
   - routes/custom-host
   verbs:
   - create
+
+- apiGroups:
+  - ingress.operator.openshift.io
+  resources:
+  - dnsrecords
+  verbs:
+  - get
+  - list
+  - watch

@@ -22,91 +22,56 @@ OR
 oc create namespace openshift-custom-domains-operator
 oc apply -f deploy/
 
-### Customer Setup
+### Cert Setup
 
-#### Setup CNAME Record
-Get cluster FQDN from API
-```
-oc cluster-info
-```
+#### Let's Encrypt Notes
+If you do not have a wildcard certificate for the custom domain, you can use Let's Encrypt (certbot) to generate a wildcard certificate.
 
-1. Go to AWS (or other DNS Vendor)
-2. Update CNAME record in Route53 (or other DNS Vendor)
-
-Verify
-```
-oc get svc -n openshift-ingress router-default
-dig +short demo.apps.fidata.io
-dig +short demo.apps.drow-dev02.p1p4.s1.devshift.org
-```
-
-#### Setup TLS Secret
-
-##### Certbot
-Install certbot and obtain wildcard cert
+Install certbot and obtain wildcard cert:
 ```
 brew install certbot
 sudo certbot certonly --manual --preferred-challenges=dns --agree-tos --email=<your-email> -d '*.apps.<domain>'
 ```
 Follow instructions to verify domain ownership in Route53 (or other DNS vendor).
 
-##### Create Secret
-oc create secret -n openshift-ingress tls custom-default-tls --cert=/etc/letsencrypt/live/apps.<domain>/fullchain.pem --key=/etc/letsencrypt/live/apps.<domain>/privkey.pem
-
-### Create Custom Domain
+### Add Secret and CustomDomain CR
+Example:
+```
+oc new-project my-project
+oc create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
 oc apply -f <(echo "
 apiVersion: managed.openshift.io/v1alpha1
 kind: CustomDomain
 metadata:
-  name: cluster
+  name: acme
 spec:
-  domain: apps.<domain>
+  domain: apps.acme.io
   certificate:
-    name: my-cert
+    name: acme-tls
     namespace: my-project
 ")
-
-
-### Test
-
-Verify pods running
-```
-oc get pods -n openshift-ingress
 ```
 
-Verify operators are not degraded
+### Test Custom Apps Domain
+
+#### Get DNS Record from CR
+Example:
 ```
-oc get clusteroperators
+oc get customdomain acme -o json | jq -r .status.dnsRecord
+*.acme.cluster01.x8s0.s1.openshiftapps.com
 ```
 
-Check routes
+#### Setup External DNS with CNAME record
+Example:
 ```
-oc get routes --all-namespaces
+*.apps.acme.io -> _dns.acme.cluster01.x8s0.s1.openshiftapps.com
 ```
 
-#### Test Application
+#### Create and Test App
+Example:
 ```
-oc new-project test
 oc new-app --docker-image=docker.io/openshift/hello-openshift
-oc get pods
-oc create route edge --service=hello-openshift hello-openshift-tls
-curl https://hello-openshift-tls-test.apps.<domain>
-```
-
-
-#### Test Restoring Domain
-```
-oc delete customdomain cluster
-oc get routes --all-namespaces
-oc get pods -n openshift-ingress
-```
-
-## Check Affected CRs
-```
-oc get ingresses.config/cluster -o yaml
-oc get dnses.operator/default -o yaml
-oc get dnses.config/cluster -o yaml
-oc get ingresscontrollers/default -n openshift-ingress-operator -o yaml
-oc get publishingstrategies.cloudingress.managed.openshift.io/publishingstrategy -n openshift-cloud-ingress-operator -o yaml
-oc get routes -A
+$ oc create route edge --service=hello-openshift hello-openshift-tls --hostname hello-openshift-tls-my-project.apps.acme.io
+$ curl https://hello-openshift-tls-my-project.apps.acme.io
+Hello OpenShift!
 ```
