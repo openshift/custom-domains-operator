@@ -3,6 +3,10 @@ kind: CustomResourceDefinition
 metadata:
   name: customdomains.managed.openshift.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.dnsRecord
+    name: DNS Record
+    type: string
   group: managed.openshift.io
   names:
     kind: CustomDomain

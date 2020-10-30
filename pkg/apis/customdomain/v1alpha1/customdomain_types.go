@@ -52,6 +52,7 @@ const (
 
 // CustomDomain is the Schema for the customdomains API
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="DNS Record",type=string,JSONPath=`.status.dnsRecord`
 // +kubebuilder:resource:path=customdomains,scope=Cluster
 type CustomDomain struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -90,24 +91,6 @@ const (
 
 	// CustomDomainConditionSecretNotFound is set when the TLS secret has not been found yet
 	CustomDomainConditionSecretNotFound CustomDomainConditionType = "SecretNotFound"
-
-	// CustomDomainConditionRouterCertsError is set when there is an error getting/updating router-certs
-	CustomDomainConditionRouterCertsError CustomDomainConditionType = "RouterCertsError"
-
-	// CustomDomainConditionDNSOperatorError is set when there is an error getting/updating dns.operator/default
-	CustomDomainConditionDNSOperatorError CustomDomainConditionType = "DNSOperatorError"
-
-	// CustomDomainConditionDNSConfigError is set when there is an error getting/updating dns.config/cluster
-	CustomDomainConditionDNSConfigError CustomDomainConditionType = "DNSConfigError"
-
-	// CustomDomainDefaultRouterError is set when there is an error getting/updating ingresscontrollers/default
-	CustomDomainConditionDefaultRouterError CustomDomainConditionType = "DefaultRouterError"
-
-	// CustomDomainConditionIngressConfigError is set when there is an error getting/updating ingress.config/cluster
-	CustomDomainConditionIngressConfigError CustomDomainConditionType = "IngressConfigError"
-
-	// CustomDomainConditionSystemRoutesError is set when there is an error getting/updating system routes
-	CustomDomainConditionSystemRoutesError CustomDomainConditionType = "SystemRoutesError"
 
 	// CustomDomainConditionFailed is set when custom domain creation has failed
 	CustomDomainConditionFailed CustomDomainConditionType = "Failed"
