@@ -1,6 +1,7 @@
 # Openshift Dedicated Custom Domain Operator
 
-This operator sets up a custom domain with custom certificate to be installed as a day-2 operation.
+This operator sets up a [new ingresscontroller with custom certificate](https://docs.openshift.com/container-platform/4.5/networking/ingress-operator.html#nw-ingress-setting-a-custom-default-certificate_configuring-ingress) as a day-2 operation.
+The public DNS record of this new ingresscontroller can then be used by external DNS to create a wildcard CNAME record to for a custom domain.
 
 ### Prerequisites
 

@@ -174,13 +174,15 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			ingressSecret.Type = userSecret.Type
 			err = r.client.Create(context.TODO(), ingressSecret)
 			if err != nil {
-				reqLogger.Error(err, "Error creating custom certificate secret")
+				reqLogger.Error(err, fmt.Sprintf("Error creating custom certificate secret %s", secretName))
 				return reconcile.Result{}, err
 			}
+		} else {
+			reqLogger.Error(err, fmt.Sprintf("Error getting custom certificate secret %s", secretName))
+			return reconcile.Result{}, err
 		}
-	} else {
-		reqLogger.Info(fmt.Sprintf("Certificate secret %s already exists in the %s namespace", secretName, ingressNamespace))
 	}
+	reqLogger.Info(fmt.Sprintf("Certificate secret %s already exists in the %s namespace", secretName, ingressNamespace))
 
 	// get dnses.config.openshift.io/cluster for base domain
 	dnsConfig := &configv1.DNS{}
@@ -218,10 +220,12 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 				reqLogger.Error(err, fmt.Sprintf("Error creating ingresscontroller %s in %s namespace", ingressName, ingressOperatorNamespace))
 				return reconcile.Result{}, err
 			}
+		} else {
+			reqLogger.Error(err, fmt.Sprintf("Error getting ingresscontroller %s in %s namespace", ingressName, ingressOperatorNamespace))
+			return reconcile.Result{}, err
 		}
-	} else {
-		reqLogger.Info(fmt.Sprintf("The ingresscontroller %s already exists in the %s namespace", ingressName, ingressOperatorNamespace))
 	}
+	reqLogger.Info(fmt.Sprintf("The ingresscontroller %s already exists in the %s namespace", ingressName, ingressOperatorNamespace))
 
 	// Obtain the dnsRecord to set in the CR status for final completion, requeue if not available
 	dnsRecord := &operatoringressv1.DNSRecord{}
