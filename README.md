@@ -1,6 +1,7 @@
 # Openshift Dedicated Custom Domain Operator
 
-This allows for a custom domain with custom certificate to be installed as a day-2 operation.
+This operator sets up a [new ingresscontroller with custom certificate](https://docs.openshift.com/container-platform/4.5/networking/ingress-operator.html#nw-ingress-setting-a-custom-default-certificate_configuring-ingress) as a day-2 operation.
+The public DNS record of this new ingresscontroller can then be used by external DNS to create a wildcard CNAME record to for a custom domain.
 
 ### Prerequisites
 
@@ -18,7 +19,7 @@ sudo mv operator-sdk-v0.16.0-x86_64-apple-darwin /usr/local/bin/operator-sdk
 sudo chmod a+x /usr/local/bin/operator-sdk
 ```
 
-### Building And Deploying And Testing
+### Building And Deploying
 
 #### Setup
 Create Custom Resource Definition (CRD)
@@ -34,26 +35,18 @@ operator-sdk run --local --namespace ''
 #### Build and Deploy To Cluster
 Choose public container registry e.g. 'quay.io/acme'.
 Build and push the image, then update the operator deployment manifest.
+
+Example:
 ```
-operator-sdk build quay.io/acme/custom-domain-operator
-docker push quay.io/acme/custom-domain-operator
-sed -i 's|REPLACE_ME|quay.io/acme|g' deploy/operator.yaml
-oc apply -f deploy/operator.yaml
+# deploy manifests
+oc apply -f deploy/crds/managed.openshift.io_customdomains_crd.yaml
+oc apply -f deploy/
+# build
+make docker-build docker-push
+# update image with image in build output
+oc set image -n openshift-custom-domains-operator deployment/custom-domains-operator custom-domains-operator=quay.io/dustman9000/custom-domains-operator:v0.1.29-a48b301e
 ```
 
-#### Add Secrets and CustomDomain CRD
-```
-oc new-project acme-apps
-# secret must be created in the 'openshift-ingress' and 'openshift-config' namespace
-oc -n openshift-ingress create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
-oc -n openshift-config create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
-oc apply -f <(echo "
-apiVersion: managed.openshift.io/v1alpha1
-kind: CustomDomain
-metadata:
-  name: cluster
-spec:
-  domain: apps.acme.io
-  tlsSecret: acme-tls
-")
-```
+
+## Testing
+See [TESTING](TESTING.md)

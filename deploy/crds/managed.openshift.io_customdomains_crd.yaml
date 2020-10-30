@@ -3,6 +3,10 @@ kind: CustomResourceDefinition
 metadata:
   name: customdomains.managed.openshift.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.dnsRecord
+    name: DNS Record
+    type: string
   group: managed.openshift.io
   names:
     kind: CustomDomain
@@ -28,25 +32,27 @@ spec:
           type: string
         metadata:
           type: object
-          properties:
-            name:
-              type: string
-              # Force "cluster" as CR name.
-              enum:
-               - cluster
         spec:
           description: CustomDomainSpec defines the desired state of CustomDomain
           properties:
+            certificate:
+              description: Certificate points to the custom TLS secret
+              properties:
+                name:
+                  description: Name is unique within a namespace to reference a secret
+                    resource.
+                  type: string
+                namespace:
+                  description: Namespace defines the space within which the secret
+                    name must be unique.
+                  type: string
+              type: object
             domain:
               description: This field can be used to define the custom domain
               type: string
-            tlsSecret:
-              description: TLSSecret points to the custom TLS secret in the openshift-ingress
-                namespace
-              type: string
           required:
+          - certificate
           - domain
-          - tlsSecret
           type: object
         status:
           description: CustomDomainStatus defines the observed state of CustomDomain
@@ -82,11 +88,16 @@ spec:
                     type: string
                 type: object
               type: array
+            dnsRecord:
+              description: The DNS record for the user to point their external DNS
+                to
+              type: string
             state:
               description: The overall state of the custom domain
               type: string
           required:
           - conditions
+          - dnsRecord
           type: object
       type: object
   version: v1alpha1

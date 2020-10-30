@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: custom-domains-operator
-  namespace: openshift-operators
+  namespace: openshift-custom-domains-operator
 spec:
   replicas: 1
   selector:
@@ -16,7 +16,7 @@ spec:
       serviceAccountName: custom-domains-operator
       containers:
         - name: custom-domains-operator
-          image: REPLACE_ME/custom-domains-operator
+          image: REPLACE_ME/custom-domains-operator:latest
           command:
           - custom-domains-operator
           args:

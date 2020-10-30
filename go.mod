@@ -4,8 +4,8 @@ go 1.13
 
 require (
 	github.com/go-logr/logr v0.1.0
+	github.com/gophercloud/gophercloud v0.3.0 // indirect
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
-	github.com/openshift/cloud-ingress-operator v0.0.0-20200304140751-d5ad6766555f
 	github.com/operator-framework/operator-sdk v0.16.0
 	github.com/spf13/pflag v1.0.5
 	k8s.io/api v0.18.0
