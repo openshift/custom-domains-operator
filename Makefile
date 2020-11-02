@@ -1,9 +1,13 @@
-# Injected by boilerplate/openshift/golang_osd_cluster_operator/update
-include boilerplate/openshift/golang_osd_cluster_operator/includes.mk
+include boilerplate/generated-includes.mk
 
-SHELL := /usr/bin/env bash
-GOTEST_PACKAGES ?= ./cmd/... ./pkg/...
-
-.PHONY: update_boilerplate
-update_boilerplate:
+.PHONY: boilerplate-update
+boilerplate-update:
 	@boilerplate/update
+
+# TODO: Temporary until prow config is fixed
+.PHONY: gobuild
+gobuild: go-build
+
+# TODO: Temporary until prow config is fixed
+.PHONY: gocheck
+gobuild: go-check

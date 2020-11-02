@@ -1,5 +1,5 @@
 # Usage
-# python validate_yaml.py path/to/file/or/dir
+# python validate-yaml.py path/to/file/or/dir
 
 import sys
 import yaml
@@ -10,7 +10,7 @@ usage = "Usage: {0:s} path/to/file/or/dir...".format(sys.argv[0])
 
 if len(sys.argv) < 2:
     print(usage)
-    sys.exit(1)
+    sys.exit(0)
 
 input_paths = sys.argv[1:]
 
