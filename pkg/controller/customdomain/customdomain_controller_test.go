@@ -12,7 +12,6 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	operatoringressv1 "github.com/openshift/api/operatoringress/v1"
-	routev1 "github.com/openshift/api/route/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -105,11 +104,6 @@ func TestCustomDomainController(t *testing.T) {
 
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
-
-	// Add route Openshift scheme
-	if err := routev1.AddToScheme(s); err != nil {
-		t.Fatalf("Unable to add route scheme: (%v)", err)
-	}
 
 	// Add Openshift operator v1 scheme
 	if err := operatorv1.AddToScheme(s); err != nil {
