@@ -15,7 +15,6 @@ rules:
   - events
   - configmaps
   - secrets
-  - routes
   - dnses
   verbs:
   - create
@@ -60,26 +59,11 @@ rules:
   - update
 
 - apiGroups:
-  - ""
-  resources:
-  - pods
-  verbs:
-  - get
-- apiGroups:
-  - apps
-  resources:
-  - replicasets
-  - deployments
-  verbs:
-  - get
-
-- apiGroups:
   - managed.openshift.io
   resources:
   - '*'
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
@@ -89,92 +73,41 @@ rules:
 - apiGroups:
   - operator.openshift.io
   resources:
-  - dnses
   - ingresscontrollers
   verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
+  - '*'
 
 - apiGroups:
   - config.openshift.io
   resources:
   - dnses
-  - ingresses
   verbs:
   - create
-  - delete
   - get
   - list
   - patch
   - update
   - watch
-
-- apiGroups:
-  - cloudingress.managed.openshift.io
-  resources:
-  - publishingstrategies
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-
-- apiGroups:
-  - route.openshift.io
-  resources:
-  - routes
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-  - deletecollection
 
 - apiGroups:
   - dnses.config.openshift.io
   resources:
   - '*'
   verbs:
-  - '*'
+  - create
+  - get
+  - list
+  - watch
 
 - apiGroups:
   - dnses.operator.openshift.io
   resources:
   - '*'
   verbs:
-  - '*'
-
-- apiGroups:
-  - publishingstrategies.cloudingress.managed.openshift.io
-  resources:
-  - '*'
-  verbs:
-  - '*'
-
-- apiGroups:
-  - ingresses.config.openshift.io
-  resources:
-  - '*'
-  verbs:
-  - '*'
-
-- apiGroups:
-  - route.openshift.io
-  resources:
-  - routes/custom-host
-  verbs:
   - create
+  - get
+  - list
+  - watch
 
 - apiGroups:
   - ingress.operator.openshift.io

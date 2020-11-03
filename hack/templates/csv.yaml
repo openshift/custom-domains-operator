@@ -1,0 +1,50 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: custom-domains-operator-0.0.1
+  namespace: placeholder
+  annotations:
+    categories: A list of comma separated categories that your operator falls under.
+    certified: "false"
+    description: Operator to Manage custom domains for OpenShift Dedicated Clusters.
+    containerImage: quay.io/app-sre/custom-domains-operator:latest
+    createdAt: "2020-11-03T10:41:36Z"
+    support: Red Hat SRE
+spec:
+  displayName: custom-domains-operator
+  description: Operator to Manage Custom Domains
+  keywords:
+  - kubernetes
+  - ingress
+  - openshift
+  - multi-cluster
+  - cluster
+  version: 0.0.1
+  provider:
+    name: Red Hat, Inc
+  maturity: alpha
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: false
+  install:
+    strategy: deployment
+    spec:
+      clusterPermissions:
+      - serviceAccountName: custom-domains-operator
+        # Rules will be added here by the generate-operator-bundle.py script.
+      deployments:
+      - name: custom-domains-operator
+        # Deployment spec will be added here by the generate-operator-bundle.py script.
+  customresourcedefinitions:
+    owned:
+    - description: Reconcile Custom Domains to create special IngressController
+      displayName: CustomDomain
+      kind: CustomDomain
+      name: customdomains.managed.openshift.io
+      version: v1alpha1
