@@ -16,7 +16,7 @@ gobuild: go-check
 CATALOG_REGISTRY_ORGANIZATION?=app-sre
 
 .PHONY: skopeo-push
-skopeo-push: docker-build
+skopeo-push:
 	skopeo copy \
 		--dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
 		"docker-daemon:${OPERATOR_IMAGE_URI_LATEST}" \
