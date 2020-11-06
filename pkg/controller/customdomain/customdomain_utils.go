@@ -3,6 +3,7 @@ package customdomain
 import (
 	"context"
 	"fmt"
+	"math/rand"
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
@@ -193,4 +194,16 @@ func remove(list []string, s string) []string {
 		}
 	}
 	return list
+}
+
+// letters used by randSeq
+var letters = []rune("abcdefghijklmnopqrstuvwxyz")
+
+// randSeq is a function to generate a fixed length string with random letters
+func randSeq(n int) string {
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
 }
