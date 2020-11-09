@@ -7,7 +7,7 @@ spec:
   - JSONPath: .status.endpoint
     name: Endpoint
     type: string
-  - JSONPath: .status.domain
+  - JSONPath: .spec.domain
     name: Domain
     type: string
   - JSONPath: .status.state
@@ -97,9 +97,6 @@ spec:
             dnsRecord:
               description: The DNS record added for the ingress controller
               type: string
-            domain:
-              description: The domain to add for external DNS (e.g. *.example.com)
-              type: string
             endpoint:
               description: The endpoint is a resolvable DNS address for external DNS
                 to point to
@@ -110,7 +107,6 @@ spec:
           required:
           - conditions
           - dnsRecord
-          - domain
           - endpoint
           type: object
       type: object

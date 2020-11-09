@@ -33,9 +33,6 @@ type CustomDomainStatus struct {
 	// The overall state of the custom domain
 	State CustomDomainStateType `json:"state,omitempty"`
 
-	// The domain to add for external DNS (e.g. *.example.com)
-	Domain string `json:"domain"`
-
 	// The DNS record added for the ingress controller
 	DNSRecord string `json:"dnsRecord"`
 
@@ -59,7 +56,7 @@ const (
 // CustomDomain is the Schema for the customdomains API
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Endpoint",type=string,JSONPath=`.status.endpoint`
-// +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.status.domain`
+// +kubebuilder:printcolumn:name="Domain",type=string,JSONPath=`.spec.domain`
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.state`
 // +kubebuilder:resource:path=customdomains,scope=Cluster
 type CustomDomain struct {

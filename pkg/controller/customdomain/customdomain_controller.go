@@ -228,11 +228,6 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	}
 	reqLogger.Info(fmt.Sprintf("The ingresscontroller %s already exists in the %s namespace", ingressName, ingressOperatorNamespace))
 
-	// Set domain in status in wildcard form
-	if len(instance.Status.Domain) == 0 {
-		instance.Status.Domain = fmt.Sprintf("*.%s", instance.Spec.Domain)
-	}
-
 	// Obtain the dnsRecord to set in the CR status for final completion, requeue if not available
 	dnsRecord := &operatoringressv1.DNSRecord{}
 	dnsRecordName := fmt.Sprintf("%s-wildcard", instance.Name)
