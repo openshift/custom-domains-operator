@@ -28,6 +28,12 @@ objects:
         hive.openshift.io/cluster-platform: aws
     resourceApplyMode: Sync
     resources:
+    - kind: Namespace
+      apiVersion: v1
+      metadata:
+        name: openshift-custom-domains-operator
+        labels:
+          openshift.io/cluster-monitoring: 'true'
     - apiVersion: operators.coreos.com/v1alpha1
       kind: CatalogSource
       metadata:
