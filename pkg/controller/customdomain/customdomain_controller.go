@@ -29,6 +29,7 @@ const (
 	ingressOperatorNamespace = "openshift-ingress-operator"
 	dnsConfigName            = "cluster"
 	requeueWaitMinutes       = 1
+	hostLength               = 6
 )
 
 // Add creates a new CustomDomain Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -245,6 +246,12 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	// Set the DNS record in the status from the actual DNS record created by ingress operator
 	reqLogger.Info(fmt.Sprintf("DNSRecord %s created with value %s", dnsRecordName, dnsRecord.Spec.DNSName))
 	instance.Status.DNSRecord = dnsRecord.Spec.DNSName
+
+	// endpoint is a resolvable dns address w/ a random host under the ingress domain
+	if len(instance.Status.Endpoint) == 0 {
+		endpoint := fmt.Sprintf("%s.%s", randSeq(hostLength), ingressDomain)
+		instance.Status.Endpoint = endpoint
+	}
 
 	// Update the status on CustomDomain
 	SetCustomDomainStatus(

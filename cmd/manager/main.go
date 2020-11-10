@@ -5,9 +5,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -151,6 +153,9 @@ func main() {
 
 	// Add the Metrics Service
 	addMetrics(ctx, cfg)
+
+	// Seed rand
+	rand.Seed(time.Now().UnixNano())
 
 	log.Info("Starting the Cmd.")
 

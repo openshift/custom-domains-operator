@@ -4,8 +4,14 @@ metadata:
   name: customdomains.managed.openshift.io
 spec:
   additionalPrinterColumns:
-  - JSONPath: .status.dnsRecord
-    name: DNS Record
+  - JSONPath: .status.endpoint
+    name: Endpoint
+    type: string
+  - JSONPath: .spec.domain
+    name: Domain
+    type: string
+  - JSONPath: .status.state
+    name: Status
     type: string
   group: managed.openshift.io
   names:
@@ -89,8 +95,11 @@ spec:
                 type: object
               type: array
             dnsRecord:
-              description: The DNS record for the user to point their external DNS
-                to
+              description: The DNS record added for the ingress controller
+              type: string
+            endpoint:
+              description: The endpoint is a resolvable DNS address for external DNS
+                to point to
               type: string
             state:
               description: The overall state of the custom domain
@@ -98,6 +107,7 @@ spec:
           required:
           - conditions
           - dnsRecord
+          - endpoint
           type: object
       type: object
   version: v1alpha1
