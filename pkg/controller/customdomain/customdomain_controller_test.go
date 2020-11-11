@@ -32,6 +32,8 @@ func TestCustomDomainController(t *testing.T) {
 	var (
 		clusterDomain     = "cluster1.x8s0.s1.openshiftapps.com"
 		instanceName      = "test"
+		badName1          = "default"
+		badName2          = "apps2"
 		instanceNamespace = "my-project"
 		userNamespace     = "my-project"
 		userDomain        = "apps.foo.com"
@@ -43,6 +45,34 @@ func TestCustomDomainController(t *testing.T) {
 	customdomain := &customdomainv1alpha1.CustomDomain{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      instanceName,
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Certificate: corev1.SecretReference{
+				Name:      userSecretName,
+				Namespace: userNamespace,
+			},
+		},
+	}
+
+	// inalid customdomains
+	badcustomdomain1 := &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      badName1,
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Certificate: corev1.SecretReference{
+				Name:      userSecretName,
+				Namespace: userNamespace,
+			},
+		},
+	}
+	badcustomdomain2 := &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      badName2,
 			Namespace: userNamespace,
 		},
 		Spec: customdomainv1alpha1.CustomDomainSpec{
@@ -97,6 +127,8 @@ func TestCustomDomainController(t *testing.T) {
 	// Objects to track in the fake client.
 	objs := []runtime.Object{
 		customdomain,
+		badcustomdomain1,
+		badcustomdomain2,
 		userSecret,
 		dnsConfig,
 		dnsRecord,
@@ -252,5 +284,61 @@ func TestCustomDomainController(t *testing.T) {
 	}, actualCustomIngress)
 	if err == nil {
 		t.Fatalf("get ingress: (%v)", err)
+	}
+
+	// Mock request to simulate Reconcile() being called on an event for a CR with invalid names
+	// check "default"
+	req = reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      badName1,
+			Namespace: instanceNamespace,
+		},
+	}
+	res, err = r.Reconcile(req)
+	if err == nil {
+		t.Fatalf("reconcile should have thrown an error on invalid name (%s)!", badName1)
+	}
+	// get instance after reconcile
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      badName1,
+		Namespace: instanceNamespace,
+	}, actualCustomDomain)
+	if err != nil {
+		t.Fatalf("get custom domain: (%v)", err)
+	}
+	// check for condition type on last condition
+	if actualCustomDomain.Status.Conditions[0].Type != customdomainv1alpha1.CustomDomainConditionInvalidName {
+		t.Errorf(fmt.Sprintf("Conditions[0].Type does not equal (%s), (%v)", string(customdomainv1alpha1.CustomDomainConditionInvalidName), actualCustomDomain.Status.Conditions))
+	}
+	// check for not ready status
+	if actualCustomDomain.Status.State != customdomainv1alpha1.CustomDomainStateNotReady {
+		t.Errorf(fmt.Sprintf("Status.State does not equal (%s)", string(customdomainv1alpha1.CustomDomainStateNotReady)))
+	}
+	// check "apps2"
+	req = reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      badName2,
+			Namespace: instanceNamespace,
+		},
+	}
+	res, err = r.Reconcile(req)
+	if err == nil {
+		t.Fatalf("reconcile should have thrown an error on invalid name (%s)!", badName2)
+	}
+	// get instance after reconcile
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      badName2,
+		Namespace: instanceNamespace,
+	}, actualCustomDomain)
+	if err != nil {
+		t.Fatalf("get custom domain: (%v)", err)
+	}
+	// check for condition type on last condition
+	if actualCustomDomain.Status.Conditions[0].Type != customdomainv1alpha1.CustomDomainConditionInvalidName {
+		t.Errorf(fmt.Sprintf("Conditions[0].Type does not equal (%s), (%v)", string(customdomainv1alpha1.CustomDomainConditionInvalidName), actualCustomDomain.Status.Conditions))
+	}
+	// check for not ready status
+	if actualCustomDomain.Status.State != customdomainv1alpha1.CustomDomainStateNotReady {
+		t.Errorf(fmt.Sprintf("Status.State does not equal (%s)", string(customdomainv1alpha1.CustomDomainStateNotReady)))
 	}
 }

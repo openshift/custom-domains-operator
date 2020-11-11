@@ -112,12 +112,16 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 	}, ingressSecret)
 	if err != nil {
 		reqLogger.Error(err, fmt.Sprintf("Failed to get %s secret", instance.Name))
-		return err
-	}
-	err = r.client.Delete(context.TODO(), ingressSecret)
-	if err != nil {
-		reqLogger.Error(err, fmt.Sprintf("Failed to delete %s secret", instance.Name))
-		return err
+	} else {
+		if _, ok := ingressSecret.Labels[ingressLabelName]; ok {
+			err = r.client.Delete(context.TODO(), ingressSecret)
+			if err != nil {
+				reqLogger.Error(err, fmt.Sprintf("Failed to delete %s secret", instance.Name))
+				return err
+			}
+		} else {
+			reqLogger.Info(fmt.Sprintf("Secret %s did not have proper labels, skipping.", ingressSecret.Name))
+		}
 	}
 
 	// get and delete the custom ingresscontroller
@@ -128,15 +132,18 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 	}, customIngress)
 	if err != nil {
 		reqLogger.Error(err, fmt.Sprintf("Failed to get %s ingresscontroller", instance.Name))
-		return err
+	} else {
+		if _, ok := customIngress.Labels[ingressLabelName]; ok {
+			err = r.client.Delete(context.TODO(), customIngress)
+			if err != nil {
+				reqLogger.Error(err, fmt.Sprintf("Failed to delete %s ingresscontroller", instance.Name))
+				return err
+			}
+		} else {
+			reqLogger.Info(fmt.Sprintf("IngressController %s did not have proper labels, skipping.", customIngress.Name))
+		}
 	}
-	err = r.client.Delete(context.TODO(), customIngress)
-	if err != nil {
-		reqLogger.Error(err, fmt.Sprintf("Failed to delete %s ingresscontroller", instance.Name))
-		return err
-	}
-
-	reqLogger.Info("Successfully finalized customdomain")
+	reqLogger.Info(fmt.Sprintf("Customdomain %s successfully finalized", instance.Name))
 	return nil
 }
 
@@ -176,7 +183,7 @@ func (r *ReconcileCustomDomain) statusUpdate(reqLogger logr.Logger, instance *cu
 	return err
 }
 
-// contains is a helper function for finalizer
+// contains is a helper function for finding a string in an array
 func contains(list []string, s string) bool {
 	for _, v := range list {
 		if v == s {
