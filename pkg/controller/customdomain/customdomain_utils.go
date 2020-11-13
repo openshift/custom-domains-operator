@@ -9,6 +9,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -111,7 +112,11 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 		Name:      instance.Name,
 	}, ingressSecret)
 	if err != nil {
-		reqLogger.Error(err, fmt.Sprintf("Failed to get %s secret", instance.Name))
+		if !kerr.IsNotFound(err) {
+			reqLogger.Error(err, fmt.Sprintf("Failed to get %s secret", instance.Name))
+			return err
+		}
+		reqLogger.Info(fmt.Sprintf("Secret %s was not found, skipping.", instance.Name))
 	} else {
 		if _, ok := ingressSecret.Labels[ingressLabelName]; ok {
 			err = r.client.Delete(context.TODO(), ingressSecret)
@@ -131,7 +136,11 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 		Name:      instance.Name,
 	}, customIngress)
 	if err != nil {
-		reqLogger.Error(err, fmt.Sprintf("Failed to get %s ingresscontroller", instance.Name))
+		if !kerr.IsNotFound(err) {
+			reqLogger.Error(err, fmt.Sprintf("Failed to get %s ingresscontroller", instance.Name))
+			return err
+		}
+		reqLogger.Info(fmt.Sprintf("IngressController %s was not found, skipping.", instance.Name))
 	} else {
 		if _, ok := customIngress.Labels[ingressLabelName]; ok {
 			err = r.client.Delete(context.TODO(), customIngress)

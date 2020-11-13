@@ -32,7 +32,7 @@ const (
 	ingressNamespace         = "openshift-ingress"
 	ingressOperatorNamespace = "openshift-ingress-operator"
 	dnsConfigName            = "cluster"
-	ingressLabelName         = "osd-custom-domains-owner"
+	ingressLabelName         = "customdomains.managed.openshift.io/managed"
 	requeueWaitMinutes       = 1
 	hostLength               = 6
 )
@@ -190,7 +190,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		if kerr.IsNotFound(err) {
 			ingressSecret.Name = secretName
 			ingressSecret.Namespace = ingressNamespace
-			ingressSecret.Labels = labelsForOwnedResources(instance.Name)
+			ingressSecret.Labels = labelsForOwnedResources()
 			ingressSecret.Data = userSecret.Data
 			ingressSecret.Type = userSecret.Type
 			err = r.client.Create(context.TODO(), ingressSecret)
@@ -230,7 +230,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		if kerr.IsNotFound(err) {
 			customIngress.Name = ingressName
 			customIngress.Namespace = ingressOperatorNamespace
-			customIngress.Labels = labelsForOwnedResources(instance.Name)
+			customIngress.Labels = labelsForOwnedResources()
 			customIngress.Spec.Domain = ingressDomain
 			if customIngress.Spec.DefaultCertificate != nil {
 				customIngress.Spec.DefaultCertificate.Name = secretName
@@ -290,6 +290,6 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 }
 
 // labelsForOwnedResources creates a simple set of labels for all routes.
-func labelsForOwnedResources(name string) map[string]string {
-	return map[string]string{ingressLabelName: name}
+func labelsForOwnedResources() map[string]string {
+	return map[string]string{ingressLabelName: "true"}
 }
