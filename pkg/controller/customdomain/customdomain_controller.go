@@ -25,14 +25,14 @@ import (
 
 var log = logf.Log.WithName("controller_customdomain")
 
-// managedIngressNames contains an array of known managed ingresscontroller
-var managedIngressNames = []string{"default", "apps2"}
+// restrictedIngressNames contains an array of known managed ingresscontroller
+var restrictedIngressNames = []string{"default", "apps2"}
 
 const (
 	ingressNamespace         = "openshift-ingress"
 	ingressOperatorNamespace = "openshift-ingress-operator"
 	dnsConfigName            = "cluster"
-	ingressLabelName         = "customdomains.managed.openshift.io/managed"
+	managedLabelName         = "customdomains.managed.openshift.io/managed"
 	requeueWaitMinutes       = 1
 	hostLength               = 6
 )
@@ -131,9 +131,9 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	}
 
 	// Check that the instance name does not clash with known managed names
-	if contains(managedIngressNames, instance.Name) {
+	if contains(restrictedIngressNames, instance.Name) {
 		errStr := fmt.Sprintf("Invalid CR name (%s)", instance.Name)
-		reqLogger.Info(fmt.Sprintf("Instance name (%s) clashes with known names (%v)!", instance.Name, managedIngressNames))
+		reqLogger.Info(fmt.Sprintf("Instance name (%s) clashes with known names (%v)!", instance.Name, restrictedIngressNames))
 		SetCustomDomainStatus(
 			reqLogger,
 			instance,
@@ -291,5 +291,5 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 
 // labelsForOwnedResources creates a simple set of labels for all routes.
 func labelsForOwnedResources() map[string]string {
-	return map[string]string{ingressLabelName: "true"}
+	return map[string]string{managedLabelName: "true"}
 }

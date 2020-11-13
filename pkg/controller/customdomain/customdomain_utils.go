@@ -118,7 +118,7 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 		}
 		reqLogger.Info(fmt.Sprintf("Secret %s was not found, skipping.", instance.Name))
 	} else {
-		if _, ok := ingressSecret.Labels[ingressLabelName]; ok {
+		if _, ok := ingressSecret.Labels[managedLabelName]; ok {
 			err = r.client.Delete(context.TODO(), ingressSecret)
 			if err != nil {
 				reqLogger.Error(err, fmt.Sprintf("Failed to delete %s secret", instance.Name))
@@ -142,14 +142,19 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 		}
 		reqLogger.Info(fmt.Sprintf("IngressController %s was not found, skipping.", instance.Name))
 	} else {
-		if _, ok := customIngress.Labels[ingressLabelName]; ok {
-			err = r.client.Delete(context.TODO(), customIngress)
-			if err != nil {
-				reqLogger.Error(err, fmt.Sprintf("Failed to delete %s ingresscontroller", instance.Name))
-				return err
+		// Only delete the IngressController if it has the proper labels and does not have a restricted name
+		if _, ok := customIngress.Labels[managedLabelName]; ok {
+			if !contains(restrictedIngressNames, customIngress.Name) {
+				err = r.client.Delete(context.TODO(), customIngress)
+				if err != nil {
+					reqLogger.Error(err, fmt.Sprintf("Failed to delete %s ingresscontroller", customIngress.Name))
+					return err
+				}
+			} else {
+				reqLogger.Info(fmt.Sprintf("IngressController %s has a restricted name, not deleting.", customIngress.Name))
 			}
 		} else {
-			reqLogger.Info(fmt.Sprintf("IngressController %s did not have proper labels, skipping.", customIngress.Name))
+			reqLogger.Info(fmt.Sprintf("IngressController %s did not have proper labels, not deleting.", customIngress.Name))
 		}
 	}
 	reqLogger.Info(fmt.Sprintf("Customdomain %s successfully finalized", instance.Name))
