@@ -2,6 +2,7 @@ package customdomain
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,7 +11,7 @@ import (
 	operatoringressv1 "github.com/openshift/api/operatoringress/v1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -24,10 +25,14 @@ import (
 
 var log = logf.Log.WithName("controller_customdomain")
 
+// restrictedIngressNames contains an array of known managed ingresscontroller
+var restrictedIngressNames = []string{"default", "apps2"}
+
 const (
 	ingressNamespace         = "openshift-ingress"
 	ingressOperatorNamespace = "openshift-ingress-operator"
 	dnsConfigName            = "cluster"
+	managedLabelName         = "customdomains.managed.openshift.io/managed"
 	requeueWaitMinutes       = 1
 	hostLength               = 6
 )
@@ -85,7 +90,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	instance := &customdomainv1alpha1.CustomDomain{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if kerr.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
@@ -123,6 +128,20 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		if err := r.addFinalizer(reqLogger, instance); err != nil {
 			return reconcile.Result{}, err
 		}
+	}
+
+	// Check that the instance name does not clash with known managed names
+	if contains(restrictedIngressNames, instance.Name) {
+		errStr := fmt.Sprintf("Invalid CR name (%s)", instance.Name)
+		reqLogger.Info(fmt.Sprintf("Instance name (%s) clashes with known names (%v)!", instance.Name, restrictedIngressNames))
+		SetCustomDomainStatus(
+			reqLogger,
+			instance,
+			errStr,
+			customdomainv1alpha1.CustomDomainConditionInvalidName,
+			customdomainv1alpha1.CustomDomainStateNotReady)
+		_ = r.statusUpdate(reqLogger, instance)
+		return reconcile.Result{}, errors.New(errStr)
 	}
 
 	if instance.Status.State != customdomainv1alpha1.CustomDomainStateReady {
@@ -168,9 +187,10 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		Name:      secretName,
 	}, ingressSecret)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if kerr.IsNotFound(err) {
 			ingressSecret.Name = secretName
 			ingressSecret.Namespace = ingressNamespace
+			ingressSecret.Labels = labelsForOwnedResources()
 			ingressSecret.Data = userSecret.Data
 			ingressSecret.Type = userSecret.Type
 			err = r.client.Create(context.TODO(), ingressSecret)
@@ -207,9 +227,10 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		Name:      ingressName,
 	}, customIngress)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if kerr.IsNotFound(err) {
 			customIngress.Name = ingressName
 			customIngress.Namespace = ingressOperatorNamespace
+			customIngress.Labels = labelsForOwnedResources()
 			customIngress.Spec.Domain = ingressDomain
 			if customIngress.Spec.DefaultCertificate != nil {
 				customIngress.Spec.DefaultCertificate.Name = secretName
@@ -225,8 +246,9 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			reqLogger.Error(err, fmt.Sprintf("Error getting ingresscontroller %s in %s namespace", ingressName, ingressOperatorNamespace))
 			return reconcile.Result{}, err
 		}
+	} else {
+		reqLogger.Info(fmt.Sprintf("The ingresscontroller %s already exists in the %s namespace", ingressName, ingressOperatorNamespace))
 	}
-	reqLogger.Info(fmt.Sprintf("The ingresscontroller %s already exists in the %s namespace", ingressName, ingressOperatorNamespace))
 
 	// Obtain the dnsRecord to set in the CR status for final completion, requeue if not available
 	dnsRecord := &operatoringressv1.DNSRecord{}
@@ -236,7 +258,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		Name:      dnsRecordName,
 	}, dnsRecord)
 	if err != nil {
-		if errors.IsNotFound(err) {
+		if kerr.IsNotFound(err) {
 			// requeue and wait for record
 			return reconcile.Result{Requeue: true, RequeueAfter: time.Duration(requeueWaitMinutes) * time.Minute}, nil
 		}
@@ -265,4 +287,9 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
+}
+
+// labelsForOwnedResources creates a simple set of labels for all routes.
+func labelsForOwnedResources() map[string]string {
+	return map[string]string{managedLabelName: "true"}
 }

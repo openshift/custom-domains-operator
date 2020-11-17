@@ -97,6 +97,9 @@ const (
 	// CustomDomainConditionSecretNotFound is set when the TLS secret has not been found yet
 	CustomDomainConditionSecretNotFound CustomDomainConditionType = "SecretNotFound"
 
+	// CustomDomainConditionInvalidName is set when the CR name is invalid (eg. "default", "apps2")
+	CustomDomainConditionInvalidName CustomDomainConditionType = "InvalidName"
+
 	// CustomDomainConditionFailed is set when custom domain creation has failed
 	CustomDomainConditionFailed CustomDomainConditionType = "Failed"
 

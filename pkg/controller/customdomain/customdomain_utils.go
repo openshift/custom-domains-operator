@@ -9,6 +9,7 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -111,13 +112,21 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 		Name:      instance.Name,
 	}, ingressSecret)
 	if err != nil {
-		reqLogger.Error(err, fmt.Sprintf("Failed to get %s secret", instance.Name))
-		return err
-	}
-	err = r.client.Delete(context.TODO(), ingressSecret)
-	if err != nil {
-		reqLogger.Error(err, fmt.Sprintf("Failed to delete %s secret", instance.Name))
-		return err
+		if !kerr.IsNotFound(err) {
+			reqLogger.Error(err, fmt.Sprintf("Failed to get %s secret", instance.Name))
+			return err
+		}
+		reqLogger.Info(fmt.Sprintf("Secret %s was not found, skipping.", instance.Name))
+	} else {
+		if _, ok := ingressSecret.Labels[managedLabelName]; ok {
+			err = r.client.Delete(context.TODO(), ingressSecret)
+			if err != nil {
+				reqLogger.Error(err, fmt.Sprintf("Failed to delete %s secret", instance.Name))
+				return err
+			}
+		} else {
+			reqLogger.Info(fmt.Sprintf("Secret %s did not have proper labels, skipping.", ingressSecret.Name))
+		}
 	}
 
 	// get and delete the custom ingresscontroller
@@ -127,16 +136,28 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 		Name:      instance.Name,
 	}, customIngress)
 	if err != nil {
-		reqLogger.Error(err, fmt.Sprintf("Failed to get %s ingresscontroller", instance.Name))
-		return err
+		if !kerr.IsNotFound(err) {
+			reqLogger.Error(err, fmt.Sprintf("Failed to get %s ingresscontroller", instance.Name))
+			return err
+		}
+		reqLogger.Info(fmt.Sprintf("IngressController %s was not found, skipping.", instance.Name))
+	} else {
+		// Only delete the IngressController if it has the proper labels and does not have a restricted name
+		if _, ok := customIngress.Labels[managedLabelName]; ok {
+			if !contains(restrictedIngressNames, customIngress.Name) {
+				err = r.client.Delete(context.TODO(), customIngress)
+				if err != nil {
+					reqLogger.Error(err, fmt.Sprintf("Failed to delete %s ingresscontroller", customIngress.Name))
+					return err
+				}
+			} else {
+				reqLogger.Info(fmt.Sprintf("IngressController %s has a restricted name, not deleting.", customIngress.Name))
+			}
+		} else {
+			reqLogger.Info(fmt.Sprintf("IngressController %s did not have proper labels, not deleting.", customIngress.Name))
+		}
 	}
-	err = r.client.Delete(context.TODO(), customIngress)
-	if err != nil {
-		reqLogger.Error(err, fmt.Sprintf("Failed to delete %s ingresscontroller", instance.Name))
-		return err
-	}
-
-	reqLogger.Info("Successfully finalized customdomain")
+	reqLogger.Info(fmt.Sprintf("Customdomain %s successfully finalized", instance.Name))
 	return nil
 }
 
@@ -176,7 +197,7 @@ func (r *ReconcileCustomDomain) statusUpdate(reqLogger logr.Logger, instance *cu
 	return err
 }
 
-// contains is a helper function for finalizer
+// contains is a helper function for finding a string in an array
 func contains(list []string, s string) bool {
 	for _, v := range list {
 		if v == s {
