@@ -14,6 +14,7 @@ import os
 import sys
 import yaml
 import shutil
+import re
 
 # This script will append the current number of commits given as an arg
 # (presumably since some past base tag), and the git hash arg for a final
@@ -67,6 +68,13 @@ for file_name in crd_files:
             "version": crd["spec"]["version"]
         }
     )
+
+# Copy all prometheus yaml files over to the bundle output dir:
+prom_files = [ f for f in os.listdir('deploy') if re.search(r'.*prom_k8s.*\.yaml', f) ]
+for file_name in prom_files:
+    full_path = os.path.join('deploy', file_name)
+    if (os.path.isfile(full_path)):
+        shutil.copy(full_path, os.path.join(version_dir, file_name))
 
 csv['spec']['install']['spec']['clusterPermissions'] = []
 
