@@ -12,6 +12,7 @@ import (
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -232,6 +233,18 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			customIngress.Namespace = ingressOperatorNamespace
 			customIngress.Labels = labelsForOwnedResources()
 			customIngress.Spec.Domain = ingressDomain
+			customIngress.Spec.NodePlacement = &operatorv1.NodePlacement{
+				NodeSelector: &metav1.LabelSelector{
+					MatchLabels: map[string]string{"node-role.kubernetes.io/infra": ""},
+				},
+				Tolerations: []corev1.Toleration{
+					{
+						Key:      "node-role.kubernetes.io/infra",
+						Effect:   corev1.TaintEffectNoSchedule,
+						Operator: corev1.TolerationOpExists,
+					},
+				},
+			}
 			if customIngress.Spec.DefaultCertificate != nil {
 				customIngress.Spec.DefaultCertificate.Name = secretName
 			} else {
