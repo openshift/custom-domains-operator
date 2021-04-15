@@ -7,6 +7,8 @@ parameters:
   required: true
 - name: IMAGE_TAG
   required: true
+- name: REPO_DIGEST
+  required: true
 - name: REPO_NAME
   value: custom-domains-operator
   required: true
@@ -43,7 +45,7 @@ objects:
         name: custom-domains-operator-registry
         namespace: openshift-custom-domains-operator
       spec:
-        image: ${REGISTRY_IMG}:${CHANNEL}-${IMAGE_TAG}
+        image: ${REPO_DIGEST}
         affinity:
           nodeAffinity:
             preferredDuringSchedulingIgnoredDuringExecution:
