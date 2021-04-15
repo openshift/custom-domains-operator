@@ -78,3 +78,7 @@ tags
 *.code-workspace
 .venv/*
 .operator-sdk/*
+# Artifacts from .gitignore
+.docker/
+Dockerfile.olm-registry
+saas-custom-domains-operator-bundle
