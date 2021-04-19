@@ -33,6 +33,7 @@ func TestCustomDomainController(t *testing.T) {
 		instanceName              = "test"
 		instanceNameInvalidSecret = "invalid-secret"
 		instanceNamespace         = "my-project"
+		instanceScope             = "Internal"
 		userNamespace             = "my-project"
 		userDomain                = "apps.foo.com"
 		userSecretName            = "my-secret"
@@ -47,6 +48,7 @@ func TestCustomDomainController(t *testing.T) {
 		},
 		Spec: customdomainv1alpha1.CustomDomainSpec{
 			Domain: userDomain,
+			Scope: instanceScope,
 			Certificate: corev1.SecretReference{
 				Name:      userSecretName,
 				Namespace: userNamespace,
@@ -62,6 +64,7 @@ func TestCustomDomainController(t *testing.T) {
 		},
 		Spec: customdomainv1alpha1.CustomDomainSpec{
 			Domain: userDomain,
+			Scope: "External",
 			Certificate: corev1.SecretReference{
 				Name:      "invalid",
 				Namespace: userNamespace,
@@ -185,6 +188,7 @@ func TestCustomDomainController(t *testing.T) {
 			Namespace: instanceNamespace,
 		},
 	}
+
 	res, err := r.Reconcile(req)
 	if err != nil {
 		t.Fatalf("reconcile: (%v)", err)
@@ -246,6 +250,9 @@ func TestCustomDomainController(t *testing.T) {
 	}
 	if actualCustomIngress.Spec.Domain != instanceName+"."+clusterDomain {
 		t.Errorf(fmt.Sprintf("CRD ingresscontrollers.operator.openshift.io/default domain mismatch: (%v)", actualCustomIngress.Spec.Domain))
+	}
+	if string(actualCustomIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope) != instanceScope {
+		t.Errorf(fmt.Sprintf("CRD ingresscontrollers.operator.openshift.io/default scope mismatch: (%v)", actualCustomIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope))
 	}
 
 	// check instance

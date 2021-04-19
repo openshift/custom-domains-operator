@@ -19,6 +19,11 @@ type CustomDomainSpec struct {
 
 	// Certificate points to the custom TLS secret
 	Certificate corev1.SecretReference `json:"certificate"`
+
+	// This field determines whether the CustomDomain ingress is internal or external
+	// +kubebuilder:validation:Enum=External;Internal
+	// +kubebuilder:default:="External"
+	Scope string `json:"scope"`
 }
 
 // CustomDomainStatus defines the observed state of CustomDomain
@@ -38,6 +43,9 @@ type CustomDomainStatus struct {
 
 	// The endpoint is a resolvable DNS address for external DNS to point to
 	Endpoint string `json:"endpoint"`
+
+	// The scope dictates whether the ingress controller is internal or external
+	Scope string `json:"scope"`
 }
 
 // CustomDomainStateType is a valid value for CustomDomainStatus.State

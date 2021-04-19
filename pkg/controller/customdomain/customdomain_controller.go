@@ -36,6 +36,7 @@ const (
 	managedLabelName         = "customdomains.managed.openshift.io/managed"
 	requeueWaitMinutes       = 1
 	hostLength               = 6
+	ingressDefaultScope      = "External"
 )
 
 // Add creates a new CustomDomain Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -220,6 +221,10 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	// such that the record is added to the zone and external DNS can point to it
 	ingressDomain := fmt.Sprintf("%s.%s", instance.Name, dnsConfig.Spec.BaseDomain)
 	ingressName := instance.Name
+	ingressScope := instance.Spec.Scope
+	if ingressScope == "" {
+		ingressScope = ingressDefaultScope
+	}
 
 	// create new ingresscontrollers.openshift.io
 	customIngress := &operatorv1.IngressController{}
@@ -233,6 +238,12 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			customIngress.Namespace = ingressOperatorNamespace
 			customIngress.Labels = labelsForOwnedResources()
 			customIngress.Spec.Domain = ingressDomain
+			customIngress.Spec.EndpointPublishingStrategy = &operatorv1.EndpointPublishingStrategy{
+				Type: operatorv1.LoadBalancerServiceStrategyType,
+				LoadBalancer: &operatorv1.LoadBalancerStrategy{
+					Scope: operatorv1.LoadBalancerScope(ingressScope),
+				},
+			}
 			customIngress.Spec.NodePlacement = &operatorv1.NodePlacement{
 				NodeSelector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{"node-role.kubernetes.io/infra": ""},

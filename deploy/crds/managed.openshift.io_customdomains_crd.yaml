@@ -50,9 +50,17 @@ spec:
             domain:
               description: This field can be used to define the custom domain
               type: string
+            scope:
+              default: External
+              description: This field determines whether the CustomDomain ingress is internal or external
+              enum:
+                - External
+                - Internal
+              type: string
           required:
             - certificate
             - domain
+            - scope
           type: object
         status:
           description: CustomDomainStatus defines the observed state of CustomDomain
@@ -90,6 +98,9 @@ spec:
             endpoint:
               description: The endpoint is a resolvable DNS address for external DNS to point to
               type: string
+            scope:
+              description: The scope dictates whether the ingress controller is internal or external
+              type: string
             state:
               description: The overall state of the custom domain
               type: string
@@ -97,6 +108,7 @@ spec:
             - conditions
             - dnsRecord
             - endpoint
+            - scope
           type: object
   version: v1alpha1
   versions:
