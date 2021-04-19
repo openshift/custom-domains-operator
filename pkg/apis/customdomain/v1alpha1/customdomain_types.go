@@ -21,6 +21,7 @@ type CustomDomainSpec struct {
 	Certificate corev1.SecretReference `json:"certificate"`
 
 	// This field determines whether the CustomDomain ingress is internal or external
+	// +kubebuilder:default:="External"
 	Scope string `json:"scope"`
 }
 
