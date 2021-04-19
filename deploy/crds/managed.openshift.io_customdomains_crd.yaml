@@ -53,6 +53,9 @@ spec:
             scope:
               default: External
               description: This field determines whether the CustomDomain ingress is internal or external
+              enum:
+                - External
+                - Internal
               type: string
           required:
             - certificate
