@@ -19,6 +19,9 @@ type CustomDomainSpec struct {
 
 	// Certificate points to the custom TLS secret
 	Certificate corev1.SecretReference `json:"certificate"`
+
+	// This field determines whether the CustomDomain ingress is internal or external
+	Scope string `json:"scope"`
 }
 
 // CustomDomainStatus defines the observed state of CustomDomain
