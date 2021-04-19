@@ -222,7 +222,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	ingressDomain := fmt.Sprintf("%s.%s", instance.Name, dnsConfig.Spec.BaseDomain)
 	ingressName := instance.Name
 	ingressScope := instance.Spec.Scope
-	if ingressScope == ""{
+	if ingressScope == "" {
 		ingressScope = ingressDefaultScope
 	}
 
