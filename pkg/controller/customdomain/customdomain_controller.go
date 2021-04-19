@@ -36,6 +36,7 @@ const (
 	managedLabelName         = "customdomains.managed.openshift.io/managed"
 	requeueWaitMinutes       = 1
 	hostLength               = 6
+	ingressDefaultScope      = "External"
 )
 
 // Add creates a new CustomDomain Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -222,7 +223,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	ingressName := instance.Name
 	ingressScope := instance.Spec.Scope
 	if ingressScope == ""{
-		ingressScope = "External"
+		ingressScope = ingressDefaultScope
 	}
 
 	// create new ingresscontrollers.openshift.io

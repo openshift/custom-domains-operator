@@ -42,6 +42,9 @@ type CustomDomainStatus struct {
 
 	// The endpoint is a resolvable DNS address for external DNS to point to
 	Endpoint string `json:"endpoint"`
+
+	// The scope dictates whether the ingress controller is internal or external
+	Scope string `json:"scope"`
 }
 
 // CustomDomainStateType is a valid value for CustomDomainStatus.State
