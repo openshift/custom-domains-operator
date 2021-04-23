@@ -17,6 +17,7 @@ import (
 	"github.com/openshift/custom-domains-operator/pkg/controller"
 	"github.com/openshift/custom-domains-operator/version"
 
+	monitoringv1 "github.com/coreos/prometheus-operator/pkg/apis/monitoring/v1"
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	operatoringressv1 "github.com/openshift/api/operatoringress/v1"
@@ -93,7 +94,7 @@ func main() {
 
 	// Set default manager options
 	options := manager.Options{
-		Namespace:          namespace,
+		Namespace: namespace,
 		// disable controller-runtime prometheus metrics
 		MetricsBindAddress: "0",
 	}
@@ -137,6 +138,12 @@ func main() {
 	// Add operatoringressv1
 	if err := operatoringressv1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Error(err, "")
+		os.Exit(1)
+	}
+
+	// Add prometheus objects to scheme
+	if err := monitoringv1.AddToScheme(mgr.GetScheme()); err != nil {
+		log.Error(err, "error registering prometheus monitoring objects")
 		os.Exit(1)
 	}
 
