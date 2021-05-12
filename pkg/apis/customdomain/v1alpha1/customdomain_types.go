@@ -46,6 +46,7 @@ type CustomDomainStatus struct {
 	Endpoint string `json:"endpoint"`
 
 	// The scope dictates whether the ingress controller is internal or external
+	// +optional
 	Scope string `json:"scope"`
 }
 
