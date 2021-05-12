@@ -106,7 +106,6 @@ spec:
             - conditions
             - dnsRecord
             - endpoint
-            - scope
           type: object
   version: v1alpha1
   versions:

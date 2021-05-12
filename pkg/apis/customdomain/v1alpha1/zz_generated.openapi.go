@@ -252,7 +252,7 @@ func schema_pkg_apis_customdomain_v1alpha1_CustomDomainStatus(ref common.Referen
 						},
 					},
 				},
-				Required: []string{"conditions", "dnsRecord", "endpoint", "scope"},
+				Required: []string{"conditions", "dnsRecord", "endpoint"},
 			},
 		},
 		Dependencies: []string{
