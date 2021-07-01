@@ -95,7 +95,6 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	instance := &customdomainv1alpha1.CustomDomain{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
-
 		if kerr.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
