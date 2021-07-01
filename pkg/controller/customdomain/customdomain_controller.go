@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -28,6 +29,8 @@ var log = logf.Log.WithName("controller_customdomain")
 
 // restrictedIngressNames contains an array of known managed ingresscontroller
 var restrictedIngressNames = []string{"default", "apps2"}
+// validObjectNames defines the format customdomains object names must adhere to. Derived from ingresscontroller objects, which require a DNS-1035 label
+var validObjectNames = regexp.MustCompile("^[a-z]([-a-z0-9]*[a-z0-9])?$")
 
 const (
 	ingressNamespace         = "openshift-ingress"
@@ -92,6 +95,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	instance := &customdomainv1alpha1.CustomDomain{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
+
 		if kerr.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
@@ -136,6 +140,20 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	if contains(restrictedIngressNames, instance.Name) {
 		errStr := fmt.Sprintf("Invalid CR name (%s)", instance.Name)
 		reqLogger.Info(fmt.Sprintf("Instance name (%s) clashes with known names (%v)!", instance.Name, restrictedIngressNames))
+		SetCustomDomainStatus(
+			reqLogger,
+			instance,
+			errStr,
+			customdomainv1alpha1.CustomDomainConditionInvalidName,
+			customdomainv1alpha1.CustomDomainStateNotReady)
+		_ = r.statusUpdate(reqLogger, instance)
+		return reconcile.Result{}, errors.New(errStr)
+	}
+
+	// Check that the instance name is valid
+	if !validObjectNames.Match([]byte(instance.Name)) {
+		errStr := fmt.Sprintf("Invalid CR name (%s)", instance.Name)
+		reqLogger.Info(fmt.Sprintf("Instance name (%s) does not conform to DNS guidelines: a DNS-1035 label must consist of lower case alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character (e.g. 'my-name',  or 'abc-123', regex used for validation is '" + validObjectNames.String() + "')", instance.Name))
 		SetCustomDomainStatus(
 			reqLogger,
 			instance,
