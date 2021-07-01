@@ -34,6 +34,7 @@ func TestCustomDomainController(t *testing.T) {
 		instanceNameInvalidSecret = "invalid-secret"
 		instanceNamespace         = "my-project"
 		instanceScope             = "Internal"
+		invalidObjectNames        = [...]string{"-test", "t#st", "te.st", "tEst"}
 		userNamespace             = "my-project"
 		userDomain                = "apps.foo.com"
 		userSecretName            = "my-secret"
@@ -121,7 +122,7 @@ func TestCustomDomainController(t *testing.T) {
 		dnsRecord,
 	}
 
-	// generate CustomDomains w/ restricted names
+	// generate CustomDomains w/ restricted ingress names
 	for _, n := range restrictedIngressNames {
 		cd := &customdomainv1alpha1.CustomDomain{
 			ObjectMeta: metav1.ObjectMeta{
@@ -150,6 +151,24 @@ func TestCustomDomainController(t *testing.T) {
 		}
 		objs = append(objs, cd)
 		objs = append(objs, ing)
+	}
+
+	// Customdomains w/ invalid object names
+	for _, n := range invalidObjectNames {
+		cd := &customdomainv1alpha1.CustomDomain{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: n,
+				Namespace: userNamespace,
+			},
+			Spec: customdomainv1alpha1.CustomDomainSpec{
+				Domain: userDomain,
+				Certificate: corev1.SecretReference{
+					Name: userSecretName,
+					Namespace: userNamespace,
+				},
+			},
+		}
+		objs = append(objs, cd)
 	}
 
 	// Register operator types with the runtime scheme.
@@ -211,16 +230,31 @@ func TestCustomDomainController(t *testing.T) {
 		t.Fatalf("Expected an error for %s CustomDomain", instanceNameInvalidSecret)
 	}
 
-	// Test reconcile of customdomain with restricted name
+	// Test reconcile of customdomain with restricted ingress name
 	for _, n := range restrictedIngressNames {
-		// Check reconcile of customdomain with invalid secret
-		reqInvalidSecret := reconcile.Request{
+		// Check reconcile of customdomain with invalid ingress name
+		reqInvalidName := reconcile.Request{
 			NamespacedName: types.NamespacedName{
 				Name:      n,
 				Namespace: instanceNamespace,
 			},
 		}
-		res, err = r.Reconcile(reqInvalidSecret)
+		res, err = r.Reconcile(reqInvalidName)
+		if err == nil {
+			t.Fatalf("Expected an error for %s CustomDomain", n)
+		}
+	}
+
+	// Test reconcile of customdomain with restricted object name
+	for _, n := range invalidObjectNames {
+		// Check reconcile of customdomain with invalid object name
+		reqInvalidName := reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Name: n,
+				Namespace: instanceNamespace,
+			},
+		}
+		res, err = r.Reconcile(reqInvalidName)
 		if err == nil {
 			t.Fatalf("Expected an error for %s CustomDomain", n)
 		}
@@ -285,9 +319,44 @@ func TestCustomDomainController(t *testing.T) {
 	}
 
 	// ========= DELETION =========
-	// deletion with restricted names
+	// deletion with restricted ingress names
 	now := metav1.NewTime(time.Now())
 	for _, n := range restrictedIngressNames {
+		customdomain.Name = n
+		req.NamespacedName.Name = n
+		customdomain.SetDeletionTimestamp(&now)
+		err = r.client.Update(context.TODO(), customdomain)
+		if err != nil {
+			t.Fatalf("update failed: (%v)", err)
+		}
+		res, err = r.Reconcile(req)
+		if err != nil {
+			t.Fatalf("reconcile: (%v)", err)
+		}
+		log.Info("Deleting customdomain instance")
+		// check the deletion of the customdomain and reconcile path
+		err = r.client.Delete(context.TODO(), customdomain)
+		if err != nil {
+			t.Errorf("delete customdomain: (%v)", err)
+		}
+		res, err = r.Reconcile(req)
+		if err != nil {
+			t.Fatalf("reconcile: (%v)", err)
+		}
+		if res != (reconcile.Result{}) {
+			t.Error("reconcile did not return an empty Result")
+		}
+		res, err = r.Reconcile(req)
+		if err != nil {
+			t.Fatalf("reconcile: (%v)", err)
+		}
+		if res != (reconcile.Result{}) {
+			t.Error("reconcile did not return an empty Result")
+		}
+	}
+
+	// deletion with restricted object names
+	for _, n := range invalidObjectNames {
 		customdomain.Name = n
 		req.NamespacedName.Name = n
 		customdomain.SetDeletionTimestamp(&now)
