@@ -35,6 +35,7 @@ func TestCustomDomainController(t *testing.T) {
 		instanceNamespace         = "my-project"
 		instanceScope             = "Internal"
 		invalidObjectNames        = [...]string{"-test", "t#st", "te.st", "tEst"}
+		validScopeNames           = [...]string{"", "Internal", "External"}
 		userNamespace             = "my-project"
 		userDomain                = "apps.foo.com"
 		userSecretName            = "my-secret"
@@ -49,7 +50,7 @@ func TestCustomDomainController(t *testing.T) {
 		},
 		Spec: customdomainv1alpha1.CustomDomainSpec{
 			Domain: userDomain,
-			Scope: instanceScope,
+			Scope:  instanceScope,
 			Certificate: corev1.SecretReference{
 				Name:      userSecretName,
 				Namespace: userNamespace,
@@ -65,7 +66,7 @@ func TestCustomDomainController(t *testing.T) {
 		},
 		Spec: customdomainv1alpha1.CustomDomainSpec{
 			Domain: userDomain,
-			Scope: "External",
+			Scope:  "",
 			Certificate: corev1.SecretReference{
 				Name:      "invalid",
 				Namespace: userNamespace,
@@ -118,8 +119,6 @@ func TestCustomDomainController(t *testing.T) {
 		customdomain,
 		customdomainInvalidSecret,
 		userSecret,
-		dnsConfig,
-		dnsRecord,
 	}
 
 	// generate CustomDomains w/ restricted ingress names
@@ -157,15 +156,34 @@ func TestCustomDomainController(t *testing.T) {
 	for _, n := range invalidObjectNames {
 		cd := &customdomainv1alpha1.CustomDomain{
 			ObjectMeta: metav1.ObjectMeta{
-				Name: n,
+				Name:      n,
 				Namespace: userNamespace,
 			},
 			Spec: customdomainv1alpha1.CustomDomainSpec{
 				Domain: userDomain,
 				Certificate: corev1.SecretReference{
-					Name: userSecretName,
+					Name:      userSecretName,
 					Namespace: userNamespace,
 				},
+			},
+		}
+		objs = append(objs, cd)
+	}
+
+	// Customdomains w/ valid scope names
+	for _, n := range validScopeNames {
+		cd := &customdomainv1alpha1.CustomDomain{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      n,
+				Namespace: userNamespace,
+			},
+			Spec: customdomainv1alpha1.CustomDomainSpec{
+				Domain: userDomain,
+				Certificate: corev1.SecretReference{
+					Name:      userSecretName,
+					Namespace: userNamespace,
+				},
+				Scope: n,
 			},
 		}
 		objs = append(objs, cd)
@@ -207,8 +225,21 @@ func TestCustomDomainController(t *testing.T) {
 			Namespace: instanceNamespace,
 		},
 	}
-
+	// test reconcile w/ missing dnsConfig
 	res, err := r.Reconcile(req)
+	if err == nil {
+		t.Fatalf("reconcile, expected error w/ missing dnsConfig")
+	}
+	r.client.Create(context.TODO(), dnsConfig)
+
+	// test reconcile w/ missing dnsRecord
+	res, err = r.Reconcile(req)
+	if err != nil {
+		t.Fatalf("reconcile, returned error w/ missing dnsRecord")
+	}
+	r.client.Create(context.TODO(), dnsRecord)
+
+	res, err = r.Reconcile(req)
 	if err != nil {
 		t.Fatalf("reconcile: (%v)", err)
 	}
@@ -250,7 +281,7 @@ func TestCustomDomainController(t *testing.T) {
 		// Check reconcile of customdomain with invalid object name
 		reqInvalidName := reconcile.Request{
 			NamespacedName: types.NamespacedName{
-				Name: n,
+				Name:      n,
 				Namespace: instanceNamespace,
 			},
 		}
