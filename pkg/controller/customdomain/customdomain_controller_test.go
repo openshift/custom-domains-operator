@@ -32,6 +32,7 @@ func TestCustomDomainController(t *testing.T) {
 		clusterDomain             = "cluster1.x8s0.s1.openshiftapps.com"
 		instanceName              = "test"
 		instanceNameInvalidSecret = "invalid-secret"
+		instanceNameValidSecret   = "valid-secret"
 		instanceNamespace         = "my-project"
 		instanceScope             = "Internal"
 		invalidObjectNames        = [...]string{"-test", "t#st", "te.st", "tEst"}
@@ -39,7 +40,9 @@ func TestCustomDomainController(t *testing.T) {
 		userNamespace             = "my-project"
 		userDomain                = "apps.foo.com"
 		userSecretName            = "my-secret"
+		validSecretName           = "valid-secret"
 		userSecretData            = "DEADBEEF"
+		validSecretData           = "GROUNDBEEF"
 	)
 
 	// A CustomDomain resource with metadata and spec.
@@ -74,6 +77,22 @@ func TestCustomDomainController(t *testing.T) {
 		},
 	}
 
+	// A CustomDomain with a valid secret
+	customdomainValidSecret := &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      instanceNameValidSecret,
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Scope:  "",
+			Certificate: corev1.SecretReference{
+				Name:      validSecretName,
+				Namespace: userNamespace,
+			},
+		},
+	}
+
 	// new secret of type kubernetes.io/tls
 	userSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -85,6 +104,18 @@ func TestCustomDomainController(t *testing.T) {
 	}
 	userSecret.Data[corev1.TLSPrivateKeyKey] = []byte(userSecretData)
 	userSecret.Data[corev1.TLSCertKey] = []byte(userSecretData)
+
+	// valid secret of type kubernetes.io/tls
+	validSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      validSecretName,
+			Namespace: userNamespace,
+		},
+		Data: make(map[string][]byte),
+		Type: corev1.SecretTypeTLS,
+	}
+	validSecret.Data[corev1.TLSPrivateKeyKey] = []byte(validSecretData)
+	validSecret.Data[corev1.TLSCertKey] = []byte(validSecretData)
 
 	// dns.config.openshift.io/cluster
 	dnsConfig := &configv1.DNS{
@@ -118,7 +149,9 @@ func TestCustomDomainController(t *testing.T) {
 	objs := []runtime.Object{
 		customdomain,
 		customdomainInvalidSecret,
+		customdomainValidSecret,
 		userSecret,
+		validSecret,
 	}
 
 	// generate CustomDomains w/ restricted ingress names
@@ -151,6 +184,36 @@ func TestCustomDomainController(t *testing.T) {
 		objs = append(objs, cd)
 		objs = append(objs, ing)
 	}
+
+	// generate CustomDomains with valid secret
+
+	cd := &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "validSecretCustomDomain",
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Certificate: corev1.SecretReference{
+				Name:      validSecretName,
+				Namespace: userNamespace,
+			},
+		},
+	}
+	ing := &operatorv1.IngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "validSecretIngress",
+			Namespace: ingressOperatorNamespace,
+		},
+		Spec: operatorv1.IngressControllerSpec{
+			Domain: userDomain,
+			DefaultCertificate: &corev1.LocalObjectReference{
+				Name: validSecretName,
+			},
+		},
+	}
+	objs = append(objs, cd)
+	objs = append(objs, ing)
 
 	// Customdomains w/ invalid object names
 	for _, n := range invalidObjectNames {
@@ -225,8 +288,16 @@ func TestCustomDomainController(t *testing.T) {
 			Namespace: instanceNamespace,
 		},
 	}
-	// test reconcile w/ missing dnsConfig
+
+	// test reconcile w/ valid Secret
 	res, err := r.Reconcile(req)
+	if err == nil {
+		t.Fatalf("reconcile, expected error w/ valid Secret")
+	}
+	r.client.Create(context.TODO(), customdomainValidSecret)
+
+	// test reconcile w/ missing dnsConfig
+	res, err = r.Reconcile(req)
 	if err == nil {
 		t.Fatalf("reconcile, expected error w/ missing dnsConfig")
 	}
@@ -259,6 +330,18 @@ func TestCustomDomainController(t *testing.T) {
 	res, err = r.Reconcile(reqInvalidSecret)
 	if err == nil {
 		t.Fatalf("Expected an error for %s CustomDomain", instanceNameInvalidSecret)
+	}
+
+	// Check reconcile of customdomain with valid secret
+	reqValidSecret := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      instanceNameValidSecret,
+			Namespace: instanceNamespace,
+		},
+	}
+	res, err = r.Reconcile(reqValidSecret)
+	if err != nil {
+		t.Fatalf("Expected an error for %s CustomDomain", "validSecretCustomDomain")
 	}
 
 	// Test reconcile of customdomain with restricted ingress name
