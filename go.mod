@@ -3,6 +3,7 @@ module github.com/openshift/custom-domains-operator
 go 1.13
 
 require (
+	github.com/apex/log v1.9.0 // indirect
 	github.com/coreos/prometheus-operator v0.35.1
 	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.4

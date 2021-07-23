@@ -294,7 +294,10 @@ func TestCustomDomainController(t *testing.T) {
 	if err == nil {
 		t.Fatalf("reconcile, expected error w/ valid Secret")
 	}
-	r.client.Create(context.TODO(), customdomainValidSecret)
+
+	if r.client.Create(context.TODO(), customdomainValidSecret) == nil {
+		t.Fatalf("reconcile, error w/ customdomainValidSecret")
+	}
 
 	// test reconcile w/ missing dnsConfig
 	res, err = r.Reconcile(req)
