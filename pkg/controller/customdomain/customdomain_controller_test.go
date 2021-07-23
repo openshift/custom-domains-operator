@@ -304,14 +304,20 @@ func TestCustomDomainController(t *testing.T) {
 	if err == nil {
 		t.Fatalf("reconcile, expected error w/ missing dnsConfig")
 	}
-	r.client.Create(context.TODO(), dnsConfig)
+
+	if r.client.Create(context.TODO(), dnsConfig) == nil {
+		t.Fatalf("reconcile, error w/ dnsConfig")
+	}
 
 	// test reconcile w/ missing dnsRecord
 	res, err = r.Reconcile(req)
 	if err != nil {
 		t.Fatalf("reconcile, returned error w/ missing dnsRecord")
 	}
-	r.client.Create(context.TODO(), dnsRecord)
+
+	if r.client.Create(context.TODO(), dnsRecord) == nil {
+		t.Fatalf("reconcile, error w/ dnsRecord")
+	}
 
 	res, err = r.Reconcile(req)
 	if err != nil {
