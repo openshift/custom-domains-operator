@@ -152,7 +152,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	// Check that the instance name is valid
 	if !validObjectNames.Match([]byte(instance.Name)) {
 		errStr := fmt.Sprintf("Invalid CR name (%s)", instance.Name)
-		reqLogger.Info(fmt.Sprintf("Instance name (%s) does not conform to DNS guidelines: a DNS-1035 label must consist of lower case alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character (e.g. 'my-name',  or 'abc-123', regex used for validation is '" + validObjectNames.String() + "')", instance.Name))
+		reqLogger.Info(fmt.Sprintf("Instance name (%s) does not conform to DNS guidelines: a DNS-1035 label must consist of lower case alphanumeric characters or '-', start with an alphabetic character, and end with an alphanumeric character (e.g. 'my-name',  or 'abc-123', regex used for validation is '%s')", instance.Name, validObjectNames.String()))
 		SetCustomDomainStatus(
 			reqLogger,
 			instance,
@@ -288,6 +288,19 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			return reconcile.Result{}, err
 		}
 	} else {
+		if string(customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope) != ingressScope {
+			errStr := fmt.Sprintf("Invalid update to ingress scope (detected change from %s to %s)", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope)
+			reqLogger.Info(fmt.Sprintf("The 'scope' field is immutable: detected change from %s to %s. To register a domain with %s scope, a new CustomDomain object will need to be defined.", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope, ingressScope))
+			SetCustomDomainStatus(
+				reqLogger,
+				instance,
+				errStr,
+				customdomainv1alpha1.CustomDomainConditionInvalidScope,
+				customdomainv1alpha1.CustomDomainStateNotReady)
+			_ = r.statusUpdate(reqLogger, instance)
+			return reconcile.Result{}, errors.New(errStr)
+		}
+
 		reqLogger.Info(fmt.Sprintf("The ingresscontroller %s already exists in the %s namespace", ingressName, ingressOperatorNamespace))
 	}
 

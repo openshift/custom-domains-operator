@@ -17,6 +17,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -348,6 +349,7 @@ func TestCustomDomainController(t *testing.T) {
 			Namespace: instanceNamespace,
 		},
 	}
+
 	res, err = r.Reconcile(reqValidSecret)
 	if err != nil {
 		t.Fatalf("Expected an error for %s CustomDomain", "validSecretCustomDomain")
@@ -421,10 +423,37 @@ func TestCustomDomainController(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get custom domain: (%v)", err)
 	}
+
 	// check for ready status
 	if actualCustomDomain.Status.State != customdomainv1alpha1.CustomDomainStateReady {
 		t.Errorf(fmt.Sprintf("Status.State does not equal (%s)", string(customdomainv1alpha1.CustomDomainStateReady)))
 	}
+
+	// Check scope immutability
+	externalScopePatchData := []byte(`{"spec":{"scope":"External"}}`)
+	err = r.client.Patch(context.TODO(), &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: instanceName,
+			Namespace: instanceNamespace,
+		},
+	}, client.ConstantPatch(types.StrategicMergePatchType, externalScopePatchData))
+	if err != nil {
+		t.Error("Unable to patch customdomain scope")
+	}
+
+	res, err = r.Reconcile(req)
+	if err == nil {
+		t.Error("Expected error when modifying Spec.Scope")
+	}
+
+	// Reset scope after testing
+	internalScopePatchData := []byte(`{"spec":{"scope":"Internal"}}`)
+	err = r.client.Patch(context.TODO(), &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: instanceName,
+			Namespace: instanceNamespace,
+		},
+	}, client.ConstantPatch(types.StrategicMergePatchType, internalScopePatchData))
 
 	// Reconcile again so Reconcile() and check result
 	res, err = r.Reconcile(req)

@@ -3,16 +3,18 @@ module github.com/openshift/custom-domains-operator
 go 1.13
 
 require (
-	github.com/apex/log v1.9.0 // indirect
 	github.com/coreos/prometheus-operator v0.35.1
 	github.com/go-logr/logr v0.1.0
 	github.com/go-openapi/spec v0.19.4
 	github.com/gophercloud/gophercloud v0.3.0 // indirect
+	github.com/kr/pretty v0.2.0 // indirect
 	github.com/openshift/api v3.9.1-0.20190924102528-32369d4db2ad+incompatible
 	github.com/openshift/certman-operator v1.0.0
 	github.com/openshift/operator-custom-metrics v0.4.2
 	github.com/operator-framework/operator-sdk v0.16.0
 	github.com/spf13/pflag v1.0.5
+	github.com/stretchr/testify v1.6.1 // indirect
+	gopkg.in/yaml.v3 v3.0.0-20200605160147-a5ece683394c // indirect
 	k8s.io/api v0.18.0
 	k8s.io/apimachinery v0.18.0
 	k8s.io/client-go v12.0.0+incompatible
