@@ -454,7 +454,9 @@ func TestCustomDomainController(t *testing.T) {
 			Namespace: instanceNamespace,
 		},
 	}, client.ConstantPatch(types.StrategicMergePatchType, internalScopePatchData))
-
+	if err != nil {
+		t.Error("Unable to patch customdomain scope")
+	}
 	// Reconcile again so Reconcile() and check result
 	res, err = r.Reconcile(req)
 	if err != nil {
