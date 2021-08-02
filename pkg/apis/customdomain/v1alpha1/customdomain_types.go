@@ -110,6 +110,9 @@ const (
 	// CustomDomainConditionInvalidName is set when the CR name is invalid (eg. "default", "apps2")
 	CustomDomainConditionInvalidName CustomDomainConditionType = "InvalidName"
 
+	// CustomDomainConditionInvalidScope is set when the loadbalancer scope is modified
+	CustomDomainConditionInvalidScope CustomDomainConditionType = "InvalidScope"
+
 	// CustomDomainConditionFailed is set when custom domain creation has failed
 	CustomDomainConditionFailed CustomDomainConditionType = "Failed"
 
