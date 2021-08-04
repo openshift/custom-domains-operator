@@ -28,7 +28,8 @@ import (
 var log = logf.Log.WithName("controller_customdomain")
 
 // restrictedIngressNames contains an array of known managed ingresscontroller
-var restrictedIngressNames = []string{"default", "apps2"}
+var restrictedIngressNames = []string{"default", "apps2", "apps"}
+
 // validObjectNames defines the format customdomains object names must adhere to. Derived from ingresscontroller objects, which require a DNS-1035 label
 var validObjectNames = regexp.MustCompile("^[a-z]([-a-z0-9]*[a-z0-9])?$")
 
