@@ -289,7 +289,10 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			return reconcile.Result{}, err
 		}
 	} else {
-		if string(customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope) != ingressScope {
+		// TODO: Check for scope change when customIngress.Spec.EndpointPublishingStrategy is nil
+		if customIngress.Spec.EndpointPublishingStrategy != nil &&
+			customIngress.Spec.EndpointPublishingStrategy.LoadBalancer != nil &&
+			string(customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope) != ingressScope {
 			errStr := fmt.Sprintf("Invalid update to ingress scope (detected change from %s to %s)", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope)
 			reqLogger.Info(fmt.Sprintf("The 'scope' field is immutable: detected change from %s to %s. To register a domain with %s scope, a new CustomDomain object will need to be defined.", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope, ingressScope))
 			SetCustomDomainStatus(
