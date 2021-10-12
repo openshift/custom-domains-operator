@@ -39,7 +39,7 @@ Build and push the image, then update the operator deployment manifest.
 Example:
 ```
 # deploy manifests
-oc apply -f deploy/crds/managed.openshift.io_customdomains_crd.yaml
+oc apply -f deploy/crds/managed.openshift.io_customdomains.yaml
 oc apply -f deploy/
 # build
 make docker-build docker-push
