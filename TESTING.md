@@ -80,7 +80,7 @@ $ curl https://hello-openshift-tls-my-project.apps.acme.io
 Hello OpenShift!
 ```
 
-#### Testing without DNS vendor updates
+#### Testing without External DNS Updates (Option B)
 
 Example for creating an app and a route:
 
