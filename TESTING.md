@@ -63,7 +63,7 @@ oc get customdomain acme -o json | jq -r .status.dnsRecord
 *.acme.cluster01.x8s0.s1.openshiftapps.com
 ```
 
-#### Setup External DNS with CNAME record
+#### Setup External DNS with CNAME record (Option A)
 If you don't want to update the DNS vendor, skip to the ["Testing without DNS vendor updates"](#testing-without-dns-vendor-updates) section.
 
 Example:
