@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"time"
 
@@ -222,8 +223,20 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			reqLogger.Error(err, fmt.Sprintf("Error getting custom certificate secret %s", secretName))
 			return reconcile.Result{}, err
 		}
+	} else {
+		certificateUpdated := !reflect.DeepEqual(ingressSecret, userSecret)
+		if certificateUpdated {
+			reqLogger.Info("Secret change detected, updating certificate.")
+			ingressSecret.Data = userSecret.Data
+			err = r.client.Update(context.TODO(), ingressSecret)
+			if err != nil {
+				reqLogger.Error(err, fmt.Sprintf("Error updating custom certificate secret %s", ingressSecret.Name))
+				return reconcile.Result{}, err
+			}
+		} else {
+			reqLogger.Info(fmt.Sprintf("Certificate secret %s already exists in the %s namespace", secretName, ingressNamespace))
+		}
 	}
-	reqLogger.Info(fmt.Sprintf("Certificate secret %s already exists in the %s namespace", secretName, ingressNamespace))
 
 	// get dnses.config.openshift.io/cluster for base domain
 	dnsConfig := &configv1.DNS{}
@@ -304,7 +317,6 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			_ = r.statusUpdate(reqLogger, instance)
 			return reconcile.Result{}, errors.New(errStr)
 		}
-
 		reqLogger.Info(fmt.Sprintf("The ingresscontroller %s already exists in the %s namespace", ingressName, ingressOperatorNamespace))
 	}
 

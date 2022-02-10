@@ -1,6 +1,7 @@
 package customdomain
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"reflect"
@@ -16,8 +17,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -433,7 +434,7 @@ func TestCustomDomainController(t *testing.T) {
 	externalScopePatchData := []byte(`{"spec":{"scope":"External"}}`)
 	err = r.client.Patch(context.TODO(), &customdomainv1alpha1.CustomDomain{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: instanceName,
+			Name:      instanceName,
 			Namespace: instanceNamespace,
 		},
 	}, client.ConstantPatch(types.StrategicMergePatchType, externalScopePatchData))
@@ -450,7 +451,7 @@ func TestCustomDomainController(t *testing.T) {
 	internalScopePatchData := []byte(`{"spec":{"scope":"Internal"}}`)
 	err = r.client.Patch(context.TODO(), &customdomainv1alpha1.CustomDomain{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: instanceName,
+			Name:      instanceName,
 			Namespace: instanceNamespace,
 		},
 	}, client.ConstantPatch(types.StrategicMergePatchType, internalScopePatchData))
@@ -470,6 +471,26 @@ func TestCustomDomainController(t *testing.T) {
 	err = r.client.Get(context.TODO(), req.NamespacedName, customdomain)
 	if err != nil {
 		t.Errorf("get customdomain: (%v)", err)
+	}
+
+	// update certificate
+	userSecret.Data[corev1.TLSCertKey] = []byte("newtestdata")
+	res, err = r.Reconcile(req)
+	if err != nil {
+		t.Fatalf("reconcile: (%v)", err)
+	}
+	if res != (reconcile.Result{}) {
+		t.Error("reconcile did not return empty Result")
+	}
+	err = r.client.Get(context.TODO(), types.NamespacedName{
+		Name:      actualIngressSecret.Name,
+		Namespace: actualIngressSecret.Namespace,
+	}, actualIngressSecret)
+	if err != nil {
+		t.Fatalf("failed to retrieve ingress secret %s", actualIngressSecret.Name)
+	}
+	if bytes.Equal(actualIngressSecret.Data[corev1.TLSCertKey], userSecret.Data[corev1.TLSCertKey]) {
+		t.Fatalf("failed to update ingress secret")
 	}
 
 	// ========= DELETION =========
