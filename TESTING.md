@@ -6,6 +6,16 @@
 go test ./pkg/controller/customdomain/ -coverprofile /tmp/cp.out && go tool cover -html /tmp/cp.out
 ```
 
+## Using osde2e
+
+To use [osde2e](https://github.com/openshift/osde2e), create a fork, make a local build, then run the following:
+
+```
+./out/osde2e test --cluster-id $CLUSTER_ID --configs stage,e2e-suite --skip-health-check --focus-tests "Custom Domains"
+```
+
+Current test results can be found within testgrid [here](https://testgrid.k8s.io/redhat-osd#osde2e-stage-aws-e2e-default&include-filter-by-regex=.*domain.*).
+
 ## Live Testing
 ### SRE Setup
 1. [Pause Syncset](https://github.com/openshift/ops-sop/blob/master/v4/knowledge_base/pause-syncset.md)
@@ -88,10 +98,10 @@ Example for creating an app and a route:
 oc new-app --docker-image=docker.io/openshift/hello-openshift -n my-project
 oc create route edge -n my-project --service=hello-openshift hello-openshift-tls --hostname hello-openshift-tls-my-project.apps.acme.io
 ```
-To find the IP of the endpoint use this command: 
+To find the IP of the endpoint use this command:
 
 ```
-dig +short $(oc get customdomain acme -o json | jq -r .status.endpoint) 
+dig +short $(oc get customdomain acme -o json | jq -r .status.endpoint)
 ```
 To test the app:
 ```
