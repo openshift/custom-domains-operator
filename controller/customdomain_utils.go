@@ -1,4 +1,4 @@
-package customdomain
+package managed
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-logr/logr"
 	operatorv1 "github.com/openshift/api/operator/v1"
-	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
+	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -103,11 +103,11 @@ func FindCustomDomainCondition(conditions []customdomainv1alpha1.CustomDomainCon
 }
 
 // finalizeCustomDomain cleans up left over resources once a CustomDomain CR is deleted
-func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain) error {
+func (r *CustomDomainReconciler) finalizeCustomDomain(reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain) error {
 	reqLogger.Info("Deleting old resources...")
 	// get and delete the secret in openshift-ingress
 	ingressSecret := &corev1.Secret{}
-	err := r.client.Get(context.TODO(), types.NamespacedName{
+	err := r.Client.Get(context.TODO(), types.NamespacedName{
 		Namespace: ingressNamespace,
 		Name:      instance.Name,
 	}, ingressSecret)
@@ -119,7 +119,7 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 		reqLogger.Info(fmt.Sprintf("Secret %s was not found, skipping.", instance.Name))
 	} else {
 		if _, ok := ingressSecret.Labels[managedLabelName]; ok {
-			err = r.client.Delete(context.TODO(), ingressSecret)
+			err = r.Client.Delete(context.TODO(), ingressSecret)
 			if err != nil {
 				reqLogger.Error(err, fmt.Sprintf("Failed to delete %s secret", instance.Name))
 				return err
@@ -131,7 +131,7 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 
 	// get and delete the custom ingresscontroller
 	customIngress := &operatorv1.IngressController{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Namespace: ingressOperatorNamespace,
 		Name:      instance.Name,
 	}, customIngress)
@@ -145,7 +145,7 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 		// Only delete the IngressController if it has the proper labels and does not have a restricted name
 		if _, ok := customIngress.Labels[managedLabelName]; ok {
 			if !contains(restrictedIngressNames, customIngress.Name) {
-				err = r.client.Delete(context.TODO(), customIngress)
+				err = r.Client.Delete(context.TODO(), customIngress)
 				if err != nil {
 					reqLogger.Error(err, fmt.Sprintf("Failed to delete %s ingresscontroller", customIngress.Name))
 					return err
@@ -162,12 +162,12 @@ func (r *ReconcileCustomDomain) finalizeCustomDomain(reqLogger logr.Logger, inst
 }
 
 // addFinalizer is a function that adds a finalizer for the CustomDomain CR
-func (r *ReconcileCustomDomain) addFinalizer(reqLogger logr.Logger, m *customdomainv1alpha1.CustomDomain) error {
+func (r *CustomDomainReconciler) addFinalizer(reqLogger logr.Logger, m *customdomainv1alpha1.CustomDomain) error {
 	reqLogger.Info("Adding Finalizer for the CustomDomain")
 	m.SetFinalizers(append(m.GetFinalizers(), customDomainFinalizer))
 
 	// Update CR
-	err := r.client.Update(context.TODO(), m)
+	err := r.Client.Update(context.TODO(), m)
 	if err != nil {
 		reqLogger.Error(err, "Failed to update CustomDomain with finalizer")
 		return err
@@ -188,8 +188,8 @@ func SetCustomDomainStatus(reqLogger logr.Logger, instance *customdomainv1alpha1
 }
 
 // statusUpdate helper function to set the actual status update
-func (r *ReconcileCustomDomain) statusUpdate(reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain) error {
-	err := r.client.Status().Update(context.TODO(), instance)
+func (r *CustomDomainReconciler) statusUpdate(reqLogger logr.Logger, instance *customdomainv1alpha1.CustomDomain) error {
+	err := r.Client.Status().Update(context.TODO(), instance)
 	if err != nil {
 		reqLogger.Error(err, fmt.Sprintf("Status update for %s failed", instance.Name))
 	}

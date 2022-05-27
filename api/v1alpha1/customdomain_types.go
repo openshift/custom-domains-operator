@@ -61,7 +61,7 @@ const (
 	CustomDomainStateReady CustomDomainStateType = "Ready"
 )
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // CustomDomain is the Schema for the customdomains API
 // +kubebuilder:subresource:status
@@ -120,7 +120,7 @@ const (
 	CustomDomainConditionReady CustomDomainConditionType = "Ready"
 )
 
-// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// +kubebuilder:object:root=true
 
 // CustomDomainList contains a list of CustomDomain
 type CustomDomainList struct {
