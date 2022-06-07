@@ -1,4 +1,4 @@
-package customdomain
+package managed
 
 import (
 	"context"
@@ -11,19 +11,16 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	operatoringressv1 "github.com/openshift/api/operatoringress/v1"
-	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
+	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var log = logf.Log.WithName("controller_customdomain")
@@ -44,58 +41,34 @@ const (
 	ingressDefaultScope      = "External"
 )
 
-// Add creates a new CustomDomain Controller and adds it to the Manager. The Manager will set fields on the Controller
-// and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
-}
-
-// newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileCustomDomain{client: mgr.GetClient(), scheme: mgr.GetScheme()}
-}
-
-// add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler) error {
-	// Create a new controller
-	c, err := controller.New("customdomain-controller", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to primary resource CustomDomain
-	err = c.Watch(&source.Kind{Type: &customdomainv1alpha1.CustomDomain{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// blank assignment to verify that ReconcileCustomDomain implements reconcile.Reconciler
-var _ reconcile.Reconciler = &ReconcileCustomDomain{}
-
-// ReconcileCustomDomain reconciles a CustomDomain object
-type ReconcileCustomDomain struct {
+// CustomDomainReconciler reconciles a CustomDomain object
+type CustomDomainReconciler struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	Client client.Client
+	Scheme *runtime.Scheme
 }
 
 const customDomainFinalizer = "finalizer.customdomain.managed.openshift.io"
+
+//+kubebuilder:rbac:groups=managed.openshift.io,resources=customdomains,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=managed.openshift.io,resources=customdomains/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=managed.openshift.io,resources=customdomains/finalizers,verbs=update
+
 
 // Reconcile reads that state of the cluster for a CustomDomain object and makes changes based on the state read
 // and what is in the CustomDomain.Spec
 // Note:
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
-func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Request) (ctrl.Result, error) {
+	_ = logf.FromContext(ctx)
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CustomDomain")
 
 	// Fetch the CustomDomain instance
 	instance := &customdomainv1alpha1.CustomDomain{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, instance)
+	err := r.Client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if kerr.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -122,7 +95,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			// Remove customDomainFinalizer. Once all finalizers have been
 			// removed, the object will be deleted.
 			instance.SetFinalizers(remove(instance.GetFinalizers(), customDomainFinalizer))
-			err := r.client.Update(context.TODO(), instance)
+			err := r.Client.Update(context.TODO(), instance)
 			if err != nil {
 				return reconcile.Result{}, err
 			}
@@ -181,7 +154,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 
 	// look up secret
 	userSecret := &corev1.Secret{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Namespace: instance.Spec.Certificate.Namespace,
 		Name:      instance.Spec.Certificate.Name,
 	}, userSecret)
@@ -203,7 +176,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 
 	// create secret in the openshift-ingress namespace
 	ingressSecret := &corev1.Secret{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Namespace: ingressNamespace,
 		Name:      secretName,
 	}, ingressSecret)
@@ -214,7 +187,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			ingressSecret.Labels = labelsForOwnedResources()
 			ingressSecret.Data = userSecret.Data
 			ingressSecret.Type = userSecret.Type
-			err = r.client.Create(context.TODO(), ingressSecret)
+			err = r.Client.Create(context.TODO(), ingressSecret)
 			if err != nil {
 				reqLogger.Error(err, fmt.Sprintf("Error creating custom certificate secret %s", secretName))
 				return reconcile.Result{}, err
@@ -228,7 +201,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 		if certificateUpdated {
 			reqLogger.Info("Secret change detected, updating certificate.")
 			ingressSecret.Data = userSecret.Data
-			err = r.client.Update(context.TODO(), ingressSecret)
+			err = r.Client.Update(context.TODO(), ingressSecret)
 			if err != nil {
 				reqLogger.Error(err, fmt.Sprintf("Error updating custom certificate secret %s", ingressSecret.Name))
 				return reconcile.Result{}, err
@@ -240,7 +213,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 
 	// get dnses.config.openshift.io/cluster for base domain
 	dnsConfig := &configv1.DNS{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Name: dnsConfigName,
 	}, dnsConfig)
 	if err != nil {
@@ -259,7 +232,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 
 	// create new ingresscontrollers.openshift.io
 	customIngress := &operatorv1.IngressController{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Namespace: ingressOperatorNamespace,
 		Name:      ingressName,
 	}, customIngress)
@@ -292,7 +265,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 			} else {
 				customIngress.Spec.DefaultCertificate = &corev1.LocalObjectReference{Name: secretName}
 			}
-			err = r.client.Create(context.TODO(), customIngress)
+			err = r.Client.Create(context.TODO(), customIngress)
 			if err != nil {
 				reqLogger.Error(err, fmt.Sprintf("Error creating ingresscontroller %s in %s namespace", ingressName, ingressOperatorNamespace))
 				return reconcile.Result{}, err
@@ -323,7 +296,7 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 	// Obtain the dnsRecord to set in the CR status for final completion, requeue if not available
 	dnsRecord := &operatoringressv1.DNSRecord{}
 	dnsRecordName := fmt.Sprintf("%s-wildcard", instance.Name)
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Namespace: ingressOperatorNamespace,
 		Name:      dnsRecordName,
 	}, dnsRecord)
@@ -362,4 +335,11 @@ func (r *ReconcileCustomDomain) Reconcile(request reconcile.Request) (reconcile.
 // labelsForOwnedResources creates a simple set of labels for all routes.
 func labelsForOwnedResources() map[string]string {
 	return map[string]string{managedLabelName: "true"}
+}
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *CustomDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&customdomainv1alpha1.CustomDomain{}).
+		Complete(r)
 }

@@ -1,0 +1,6 @@
+apiVersion: managed.openshift.io/v1alpha1
+kind: CustomDomain
+metadata:
+  name: customdomain-sample
+spec:
+  # TODO(user): Add fields here

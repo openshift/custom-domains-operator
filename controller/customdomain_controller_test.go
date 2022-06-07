@@ -1,4 +1,4 @@
-package customdomain
+package managed
 
 import (
 	"bytes"
@@ -11,10 +11,9 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	operatoringressv1 "github.com/openshift/api/operatoringress/v1"
-	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/pkg/apis/customdomain/v1alpha1"
+	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -148,7 +147,7 @@ func TestCustomDomainController(t *testing.T) {
 	}
 
 	// Objects to track in the fake client.
-	objs := []runtime.Object{
+	objs := []client.Object{
 		customdomain,
 		customdomainInvalidSecret,
 		customdomainValidSecret,
@@ -272,14 +271,18 @@ func TestCustomDomainController(t *testing.T) {
 		t.Fatalf("Unable to add configv1 scheme: (%v)", err)
 	}
 
-	s.AddKnownTypes(customdomainv1alpha1.SchemeGroupVersion, customdomain)
+	if err := customdomainv1alpha1.AddToScheme(s); err != nil {
+		t.Fatalf("Unable to add customdomainv1alpha1 scheme: {%v}", err)
+	}
 
 	// Create a fake client to mock API calls.
-	cl := fake.NewFakeClient(objs...)
+	cl := fake.NewClientBuilder().
+		WithObjects(objs...).
+		Build()
 
 	log.Info("Creating ReconcileCustomDomain")
 	// Create a ReconcileCustomDomain object with the scheme and fake client.
-	r := &ReconcileCustomDomain{client: cl, scheme: s}
+	r := &CustomDomainReconciler{Client: cl, Scheme: s}
 
 	// ========= TEST RECONCILE REQUEST =========
 	// Mock request to simulate Reconcile() being called on an event for a
@@ -292,36 +295,37 @@ func TestCustomDomainController(t *testing.T) {
 	}
 
 	// test reconcile w/ valid Secret
-	res, err := r.Reconcile(req)
+	ctx := context.TODO()
+	res, err := r.Reconcile(ctx, req)
 	if err == nil {
 		t.Fatalf("reconcile, expected error w/ valid Secret")
 	}
 
-	if r.client.Create(context.TODO(), customdomainValidSecret) == nil {
+	if r.Client.Create(context.TODO(), customdomainValidSecret) == nil {
 		t.Fatalf("reconcile, error w/ customdomainValidSecret")
 	}
 
 	// test reconcile w/ missing dnsConfig
-	res, err = r.Reconcile(req)
+	res, err = r.Reconcile(ctx, req)
 	if err == nil {
 		t.Fatalf("reconcile, expected error w/ missing dnsConfig")
 	}
 
-	if r.client.Create(context.TODO(), dnsConfig) != nil {
+	if r.Client.Create(context.TODO(), dnsConfig) != nil {
 		t.Fatalf("reconcile, error w/ dnsConfig")
 	}
 
 	// test reconcile w/ missing dnsRecord
-	res, err = r.Reconcile(req)
+	res, err = r.Reconcile(ctx, req)
 	if err != nil {
 		t.Fatalf("reconcile, returned error w/ missing dnsRecord")
 	}
 
-	if r.client.Create(context.TODO(), dnsRecord) != nil {
+	if r.Client.Create(context.TODO(), dnsRecord) != nil {
 		t.Fatalf("reconcile, error w/ dnsRecord")
 	}
 
-	res, err = r.Reconcile(req)
+	res, err = r.Reconcile(ctx, req)
 	if err != nil {
 		t.Fatalf("reconcile: (%v)", err)
 	}
@@ -338,7 +342,7 @@ func TestCustomDomainController(t *testing.T) {
 			Namespace: instanceNamespace,
 		},
 	}
-	res, err = r.Reconcile(reqInvalidSecret)
+	res, err = r.Reconcile(ctx, reqInvalidSecret)
 	if err == nil {
 		t.Fatalf("Expected an error for %s CustomDomain", instanceNameInvalidSecret)
 	}
@@ -351,7 +355,7 @@ func TestCustomDomainController(t *testing.T) {
 		},
 	}
 
-	res, err = r.Reconcile(reqValidSecret)
+	res, err = r.Reconcile(ctx, reqValidSecret)
 	if err != nil {
 		t.Fatalf("Expected an error for %s CustomDomain", "validSecretCustomDomain")
 	}
@@ -365,7 +369,7 @@ func TestCustomDomainController(t *testing.T) {
 				Namespace: instanceNamespace,
 			},
 		}
-		res, err = r.Reconcile(reqInvalidName)
+		res, err = r.Reconcile(ctx, reqInvalidName)
 		if err == nil {
 			t.Fatalf("Expected an error for %s CustomDomain", n)
 		}
@@ -380,7 +384,7 @@ func TestCustomDomainController(t *testing.T) {
 				Namespace: instanceNamespace,
 			},
 		}
-		res, err = r.Reconcile(reqInvalidName)
+		res, err = r.Reconcile(ctx, reqInvalidName)
 		if err == nil {
 			t.Fatalf("Expected an error for %s CustomDomain", n)
 		}
@@ -388,7 +392,7 @@ func TestCustomDomainController(t *testing.T) {
 
 	// check copied secret
 	actualIngressSecret := &corev1.Secret{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      instanceName,
 		Namespace: ingressNamespace,
 	}, actualIngressSecret)
@@ -401,7 +405,7 @@ func TestCustomDomainController(t *testing.T) {
 
 	// check actual ingresscontrollers.operator.openshift.io/default
 	actualCustomIngress := &operatorv1.IngressController{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      instanceName,
 		Namespace: ingressOperatorNamespace,
 	}, actualCustomIngress)
@@ -417,7 +421,7 @@ func TestCustomDomainController(t *testing.T) {
 
 	// check instance
 	actualCustomDomain := &customdomainv1alpha1.CustomDomain{}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      instanceName,
 		Namespace: instanceNamespace,
 	}, actualCustomDomain)
@@ -432,34 +436,34 @@ func TestCustomDomainController(t *testing.T) {
 
 	// Check scope immutability
 	externalScopePatchData := []byte(`{"spec":{"scope":"External"}}`)
-	err = r.client.Patch(context.TODO(), &customdomainv1alpha1.CustomDomain{
+	err = r.Client.Patch(context.TODO(), &customdomainv1alpha1.CustomDomain{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      instanceName,
 			Namespace: instanceNamespace,
 		},
-	}, client.ConstantPatch(types.StrategicMergePatchType, externalScopePatchData))
+	}, client.RawPatch(types.StrategicMergePatchType, externalScopePatchData))
 	if err != nil {
 		t.Error("Unable to patch customdomain scope")
 	}
 
-	res, err = r.Reconcile(req)
+	res, err = r.Reconcile(ctx, req)
 	if err == nil {
 		t.Error("Expected error when modifying Spec.Scope")
 	}
 
 	// Reset scope after testing
 	internalScopePatchData := []byte(`{"spec":{"scope":"Internal"}}`)
-	err = r.client.Patch(context.TODO(), &customdomainv1alpha1.CustomDomain{
+	err = r.Client.Patch(context.TODO(), &customdomainv1alpha1.CustomDomain{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      instanceName,
 			Namespace: instanceNamespace,
 		},
-	}, client.ConstantPatch(types.StrategicMergePatchType, internalScopePatchData))
+	}, client.RawPatch(types.StrategicMergePatchType, internalScopePatchData))
 	if err != nil {
 		t.Error("Unable to patch customdomain scope")
 	}
 	// Reconcile again so Reconcile() and check result
-	res, err = r.Reconcile(req)
+	res, err = r.Reconcile(ctx, req)
 	if err != nil {
 		t.Fatalf("reconcile: (%v)", err)
 	}
@@ -468,21 +472,21 @@ func TestCustomDomainController(t *testing.T) {
 	}
 
 	// get instance
-	err = r.client.Get(context.TODO(), req.NamespacedName, customdomain)
+	err = r.Client.Get(context.TODO(), req.NamespacedName, customdomain)
 	if err != nil {
 		t.Errorf("get customdomain: (%v)", err)
 	}
 
 	// update certificate
 	userSecret.Data[corev1.TLSCertKey] = []byte("newtestdata")
-	res, err = r.Reconcile(req)
+	res, err = r.Reconcile(ctx, req)
 	if err != nil {
 		t.Fatalf("reconcile: (%v)", err)
 	}
 	if res != (reconcile.Result{}) {
 		t.Error("reconcile did not return empty Result")
 	}
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      actualIngressSecret.Name,
 		Namespace: actualIngressSecret.Namespace,
 	}, actualIngressSecret)
@@ -499,29 +503,31 @@ func TestCustomDomainController(t *testing.T) {
 	for _, n := range restrictedIngressNames {
 		customdomain.Name = n
 		req.NamespacedName.Name = n
+		err = r.Client.Get(context.TODO(), types.NamespacedName{
+			Name: customdomain.Name,
+			Namespace: customdomain.Namespace,
+		}, customdomain)
+		if err != nil {
+			t.Fatalf("get failed: (%v)", err)
+		}
+		log.Info("Deleting customdomain instance")
 		customdomain.SetDeletionTimestamp(&now)
-		err = r.client.Update(context.TODO(), customdomain)
+		err = r.Client.Update(context.TODO(), customdomain)
 		if err != nil {
 			t.Fatalf("update failed: (%v)", err)
 		}
-		res, err = r.Reconcile(req)
+		res, err = r.Reconcile(ctx, req)
 		if err != nil {
 			t.Fatalf("reconcile: (%v)", err)
 		}
-		log.Info("Deleting customdomain instance")
-		// check the deletion of the customdomain and reconcile path
-		err = r.client.Delete(context.TODO(), customdomain)
-		if err != nil {
-			t.Errorf("delete customdomain: (%v)", err)
-		}
-		res, err = r.Reconcile(req)
+		res, err = r.Reconcile(ctx, req)
 		if err != nil {
 			t.Fatalf("reconcile: (%v)", err)
 		}
 		if res != (reconcile.Result{}) {
 			t.Error("reconcile did not return an empty Result")
 		}
-		res, err = r.Reconcile(req)
+		res, err = r.Reconcile(ctx, req)
 		if err != nil {
 			t.Fatalf("reconcile: (%v)", err)
 		}
@@ -534,29 +540,31 @@ func TestCustomDomainController(t *testing.T) {
 	for _, n := range invalidObjectNames {
 		customdomain.Name = n
 		req.NamespacedName.Name = n
+		err = r.Client.Get(context.TODO(), types.NamespacedName{
+			Name: customdomain.Name,
+			Namespace: customdomain.Namespace,
+		}, customdomain)
+		if err != nil {
+			t.Fatalf("get failed: (%v)", err)
+		}
+		log.Info("Deleting customdomain instance")
 		customdomain.SetDeletionTimestamp(&now)
-		err = r.client.Update(context.TODO(), customdomain)
+		err = r.Client.Update(context.TODO(), customdomain)
 		if err != nil {
 			t.Fatalf("update failed: (%v)", err)
 		}
-		res, err = r.Reconcile(req)
+		res, err = r.Reconcile(ctx, req)
 		if err != nil {
 			t.Fatalf("reconcile: (%v)", err)
 		}
-		log.Info("Deleting customdomain instance")
-		// check the deletion of the customdomain and reconcile path
-		err = r.client.Delete(context.TODO(), customdomain)
-		if err != nil {
-			t.Errorf("delete customdomain: (%v)", err)
-		}
-		res, err = r.Reconcile(req)
+		res, err = r.Reconcile(ctx, req)
 		if err != nil {
 			t.Fatalf("reconcile: (%v)", err)
 		}
 		if res != (reconcile.Result{}) {
 			t.Error("reconcile did not return an empty Result")
 		}
-		res, err = r.Reconcile(req)
+		res, err = r.Reconcile(ctx, req)
 		if err != nil {
 			t.Fatalf("reconcile: (%v)", err)
 		}
@@ -568,28 +576,31 @@ func TestCustomDomainController(t *testing.T) {
 	// simulate deletion of customdomain
 	customdomain.Name = instanceName
 	req.NamespacedName.Name = instanceName
-	err = r.client.Update(context.TODO(), customdomain)
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
+		Name: customdomain.Name,
+		Namespace: customdomain.Namespace,
+	}, customdomain)
 	if err != nil {
 		t.Fatalf("update failed: (%v)", err)
 	}
-	res, err = r.Reconcile(req)
+	res, err = r.Reconcile(ctx, req)
 	if err != nil {
 		t.Fatalf("reconcile: (%v)", err)
 	}
 	log.Info("Deleting customdomain instance")
 	// check the deletion of the customdomain and reconcile path
-	err = r.client.Delete(context.TODO(), customdomain)
+	err = r.Client.Delete(context.TODO(), customdomain)
 	if err != nil {
 		t.Errorf("delete customdomain: (%v)", err)
 	}
-	res, err = r.Reconcile(req)
+	res, err = r.Reconcile(ctx, req)
 	if err != nil {
 		t.Fatalf("reconcile: (%v)", err)
 	}
 	if res != (reconcile.Result{}) {
 		t.Error("reconcile did not return an empty Result")
 	}
-	res, err = r.Reconcile(req)
+	res, err = r.Reconcile(ctx, req)
 	if err != nil {
 		t.Fatalf("reconcile: (%v)", err)
 	}
@@ -598,7 +609,7 @@ func TestCustomDomainController(t *testing.T) {
 	}
 
 	// check copied secret
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      instanceName,
 		Namespace: ingressNamespace,
 	}, actualIngressSecret)
@@ -607,7 +618,7 @@ func TestCustomDomainController(t *testing.T) {
 	}
 
 	// check that ingresscontroller was deleted
-	err = r.client.Get(context.TODO(), types.NamespacedName{
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      instanceName,
 		Namespace: ingressOperatorNamespace,
 	}, actualCustomIngress)

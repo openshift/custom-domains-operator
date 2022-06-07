@@ -32,7 +32,7 @@ spec:
           command:
           - custom-domains-operator
           args:
-            - "--zap-level=debug"
+            - "--zap-log-level=debug"
             - "--zap-encoder=console"
           imagePullPolicy: Always
           env:
