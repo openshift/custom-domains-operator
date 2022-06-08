@@ -18,9 +18,13 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var log = logf.Log.WithName("controller_customdomain")
@@ -169,6 +173,23 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 			customdomainv1alpha1.CustomDomainStateNotReady)
 		_ = r.statusUpdate(reqLogger, instance)
 		return reconcile.Result{}, err
+	}
+
+	// add the CustomDomain's label to the secret for future monitoring
+	_, labelFound := userSecret.Labels[managedLabelName]
+	if !labelFound {
+		reqLogger.Info(fmt.Sprintf("Adding label to the CustomDomain's secret (%s)", userSecret.Name))
+		secretLabels := userSecret.GetLabels()
+		if secretLabels == nil {
+			secretLabels = make(map[string]string)
+		}
+		secretLabels[managedLabelName] = instance.Name
+		userSecret.SetLabels(secretLabels)
+		err = r.Client.Update(context.TODO(), userSecret)
+		if err != nil {
+			reqLogger.Error(err, fmt.Sprintf("Error updating labels for secret (%s)", userSecret.Name))
+			return reconcile.Result{}, err
+		}
 	}
 
 	// set the secret name to be the name of the customdomain instance
@@ -339,7 +360,30 @@ func labelsForOwnedResources() map[string]string {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *CustomDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	// secretSelectorPredicate filters the controller's reconcile events down to only Secrets that have the managedLabelName
+	secretSelector := metav1.LabelSelector{
+		MatchExpressions: []metav1.LabelSelectorRequirement{
+			{
+				Key: managedLabelName,
+				Operator: metav1.LabelSelectorOpExists,
+			},
+		},
+	}
+	secretSelectorPredicate, err := predicate.LabelSelectorPredicate(secretSelector)
+	if err != nil {
+		return err
+	}
+
+	// secretHandler maps Secret reconcile events to the CustomDomain that utilizes the Secret
+	secretHandler := handler.EnqueueRequestsFromMapFunc(func (obj client.Object) []reconcile.Request {
+		customDomainName := obj.GetLabels()[managedLabelName]
+		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: customDomainName}}}
+	})
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&customdomainv1alpha1.CustomDomain{}).
+		Watches(&source.Kind{Type: &corev1.Secret{}},
+			secretHandler,
+			builder.WithPredicates(secretSelectorPredicate)).
 		Complete(r)
 }
