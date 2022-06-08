@@ -360,6 +360,22 @@ func TestCustomDomainController(t *testing.T) {
 		t.Fatalf("Expected an error for %s CustomDomain", "validSecretCustomDomain")
 	}
 
+	// Check that reconcile successfully added customdomain label to the userSecret
+	validSecretReq := types.NamespacedName{
+		Name: validSecret.Name,
+		Namespace: validSecret.Namespace,
+	}
+	err = r.Client.Get(context.TODO(), validSecretReq, validSecret)
+	if err != nil {
+		t.Fatalf("Error retrieving validSecret")
+	}
+	labelKey, found := validSecret.Labels[managedLabelName]
+	if found != true {
+		t.Error("reconcile, failed to add label to userSecret")
+	} else if labelKey != instanceNameValidSecret {
+		t.Error("reconcile, failed to label secret with correct customdomain name")
+	}
+
 	// Test reconcile of customdomain with restricted ingress name
 	for _, n := range restrictedIngressNames {
 		// Check reconcile of customdomain with invalid ingress name
