@@ -78,6 +78,8 @@ objects:
       metadata:
         name: custom-domains-operator
         namespace: openshift-custom-domains-operator
+        annotations:
+          olm.operatorframework.io/exclude-global-namespace-resolution: 'true'
       spec:
         targetNamespaces:
         - openshift-custom-domains-operator
