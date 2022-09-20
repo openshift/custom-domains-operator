@@ -43,7 +43,10 @@ const (
 	requeueWaitMinutes       = 1
 	hostLength               = 6
 	ingressDefaultScope      = "External"
+	ELBIdleTimeoutDuration   = 1800
 )
+
+var IngressControllerELBIdleTimeout metav1.Duration = metav1.Duration{Duration: ELBIdleTimeoutDuration * time.Second}
 
 // CustomDomainReconciler reconciles a CustomDomain object
 type CustomDomainReconciler struct {
@@ -269,6 +272,24 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 					Scope: operatorv1.LoadBalancerScope(ingressScope),
 				},
 			}
+
+			cloudPlatform, err := GetPlatformType(r.Client)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			isAWS := *cloudPlatform == "AWS"
+			if isAWS {
+				customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters = &operatorv1.ProviderLoadBalancerParameters{
+					Type: operatorv1.AWSLoadBalancerProvider,
+					AWS: &operatorv1.AWSLoadBalancerParameters{
+						Type: "Classic",
+						ClassicLoadBalancerParameters: &operatorv1.AWSClassicLoadBalancerParameters{
+							ConnectionIdleTimeout: IngressControllerELBIdleTimeout,
+						},
+					},
+				}
+			}
+
 			customIngress.Spec.NodePlacement = &operatorv1.NodePlacement{
 				NodeSelector: &metav1.LabelSelector{
 					MatchLabels: map[string]string{"node-role.kubernetes.io/infra": ""},
