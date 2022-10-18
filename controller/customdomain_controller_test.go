@@ -253,6 +253,14 @@ func TestCustomDomainController(t *testing.T) {
 		objs = append(objs, cd)
 	}
 
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "cluster",
+			Namespace: "",
+		},
+	}
+	objs = append(objs, infra)
+
 	// Register operator types with the runtime scheme.
 	s := scheme.Scheme
 
@@ -279,6 +287,10 @@ func TestCustomDomainController(t *testing.T) {
 	cl := fake.NewClientBuilder().
 		WithObjects(objs...).
 		Build()
+
+	if err := UpdatePlatformStatus(cl); err != nil {
+		t.Fatalf("Unable to update cloudplatform type: {%v}", err)
+	}
 
 	log.Info("Creating ReconcileCustomDomain")
 	// Create a ReconcileCustomDomain object with the scheme and fake client.
@@ -362,7 +374,7 @@ func TestCustomDomainController(t *testing.T) {
 
 	// Check that reconcile successfully added customdomain label to the userSecret
 	validSecretReq := types.NamespacedName{
-		Name: validSecret.Name,
+		Name:      validSecret.Name,
 		Namespace: validSecret.Namespace,
 	}
 	err = r.Client.Get(context.TODO(), validSecretReq, validSecret)
@@ -520,7 +532,7 @@ func TestCustomDomainController(t *testing.T) {
 		customdomain.Name = n
 		req.NamespacedName.Name = n
 		err = r.Client.Get(context.TODO(), types.NamespacedName{
-			Name: customdomain.Name,
+			Name:      customdomain.Name,
 			Namespace: customdomain.Namespace,
 		}, customdomain)
 		if err != nil {
@@ -557,7 +569,7 @@ func TestCustomDomainController(t *testing.T) {
 		customdomain.Name = n
 		req.NamespacedName.Name = n
 		err = r.Client.Get(context.TODO(), types.NamespacedName{
-			Name: customdomain.Name,
+			Name:      customdomain.Name,
 			Namespace: customdomain.Namespace,
 		}, customdomain)
 		if err != nil {
@@ -593,7 +605,7 @@ func TestCustomDomainController(t *testing.T) {
 	customdomain.Name = instanceName
 	req.NamespacedName.Name = instanceName
 	err = r.Client.Get(context.TODO(), types.NamespacedName{
-		Name: customdomain.Name,
+		Name:      customdomain.Name,
 		Namespace: customdomain.Namespace,
 	}, customdomain)
 	if err != nil {
@@ -641,4 +653,30 @@ func TestCustomDomainController(t *testing.T) {
 	if err == nil {
 		t.Fatalf("ingresscontroller %s was not deleted!", instanceName)
 	}
+}
+
+// UpdatePlatformStatus gets the infrastructure object "cluster",
+// updates its status to populate the PlatformStatus type to AWS
+func UpdatePlatformStatus(kclient client.Client) error {
+
+	u := &configv1.Infrastructure{}
+	ns := types.NamespacedName{
+		Namespace: "",
+		Name:      "cluster",
+	}
+	err := kclient.Get(context.TODO(), ns, u)
+	if err != nil {
+		return err
+	}
+
+	u.Status.PlatformStatus = &configv1.PlatformStatus{
+		Type: configv1.AWSPlatformType,
+	}
+
+	err = kclient.Status().Update(context.TODO(), u)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

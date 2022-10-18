@@ -6,12 +6,17 @@ import (
 	"math/rand"
 
 	"github.com/go-logr/logr"
+	configv1 "github.com/openshift/api/config/v1"
 	operatorv1 "github.com/openshift/api/operator/v1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // UpdateConditionCheck tests whether a condition should be updated from the
@@ -227,4 +232,40 @@ func randSeq(n int) string {
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
+}
+
+// GetPlatformType returns the cloud platform type for the cluster
+func GetPlatformType(kclient client.Client) (*configv1.PlatformType, error) {
+	infra, err := GetInfrastructureObject(kclient)
+	if err != nil {
+		return nil, err
+	}
+	return &infra.Status.PlatformStatus.Type, nil
+}
+
+// GetInfrastructureObject returns the canonical Infrastructure object
+func GetInfrastructureObject(kclient client.Client) (*configv1.Infrastructure, error) {
+	u := &unstructured.Unstructured{}
+	u.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "",
+		Version: "config.openshift.io/v1",
+		Kind:    "infrastructure",
+	})
+	ns := types.NamespacedName{
+		Namespace: "",
+		Name:      "cluster",
+	}
+	err := kclient.Get(context.TODO(), ns, u)
+	if err != nil {
+		return nil, err
+	}
+
+	uContent := u.UnstructuredContent()
+	var infra *configv1.Infrastructure
+	err = runtime.DefaultUnstructuredConverter.FromUnstructured(uContent, &infra)
+	if err != nil {
+		return nil, err
+	}
+
+	return infra, nil
 }
