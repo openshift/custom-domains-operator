@@ -282,25 +282,14 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 			}
 			if customIngress.Spec.RouteSelector != nil {
 				customIngress.Spec.RouteSelector = &metav1.LabelSelector{
-					MatchExpressions: []metav1.LabelSelectorRequirement{
-						{
-							Key:      managedLabelName,
-							Operator: metav1.LabelSelectorOpExists,
-						},
-					},
+					MatchLabels: instance.Spec.RouteSelector.MatchLabels,
 				}
-
 			}
+
 			if customIngress.Spec.NamespaceSelector != nil {
 				customIngress.Spec.NamespaceSelector = &metav1.LabelSelector{
-					MatchExpressions: []metav1.LabelSelectorRequirement{
-						{
-							Key:      managedLabelName,
-							Operator: metav1.LabelSelectorOpExists,
-						},
-					},
+					MatchLabels: instance.Spec.NamespaceSelector.MatchLabels,
 				}
-
 			}
 			if customIngress.Spec.DefaultCertificate != nil {
 				customIngress.Spec.DefaultCertificate.Name = secretName
