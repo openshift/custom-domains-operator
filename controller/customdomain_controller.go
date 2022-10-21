@@ -281,7 +281,7 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 				},
 			}
 			if instance.Spec.RouteSelector != nil {
-				customIngress.Spec.RouteSelector = &metav1.LabelSelector{
+				customIngress.Spec.RouteSelector = instance.Spec.RouteSelector
 					MatchLabels: instance.Spec.RouteSelector.MatchLabels,
 				}
 			}
