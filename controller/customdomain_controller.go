@@ -282,12 +282,9 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 			}
 			if instance.Spec.RouteSelector != nil {
 				customIngress.Spec.RouteSelector = instance.Spec.RouteSelector
-
 			}
-
 			if instance.Spec.NamespaceSelector != nil {
 				customIngress.Spec.NamespaceSelector = instance.Spec.NamespaceSelector
-
 			}
 			if customIngress.Spec.DefaultCertificate != nil {
 				customIngress.Spec.DefaultCertificate.Name = secretName
