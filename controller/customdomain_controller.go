@@ -280,13 +280,13 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 					},
 				},
 			}
-			if customIngress.Spec.RouteSelector != nil {
+			if instance.Spec.RouteSelector != nil {
 				customIngress.Spec.RouteSelector = &metav1.LabelSelector{
 					MatchLabels: instance.Spec.RouteSelector.MatchLabels,
 				}
 			}
 
-			if customIngress.Spec.NamespaceSelector != nil {
+			if instance.Spec.NamespaceSelector != nil {
 				customIngress.Spec.NamespaceSelector = &metav1.LabelSelector{
 					MatchLabels: instance.Spec.NamespaceSelector.MatchLabels,
 				}
