@@ -14,6 +14,7 @@ import (
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -30,20 +31,26 @@ func TestCustomDomainController(t *testing.T) {
 	logf.SetLogger(zap.New(zap.UseDevMode(true)))
 
 	var (
-		clusterDomain             = "cluster1.x8s0.s1.openshiftapps.com"
-		instanceName              = "test"
-		instanceNameInvalidSecret = "invalid-secret"
-		instanceNameValidSecret   = "valid-secret"
-		instanceNamespace         = "my-project"
-		instanceScope             = "Internal"
-		invalidObjectNames        = [...]string{"-test", "t#st", "te.st", "tEst"}
-		validScopeNames           = [...]string{"", "Internal", "External"}
-		userNamespace             = "my-project"
-		userDomain                = "apps.foo.com"
-		userSecretName            = "my-secret"
-		validSecretName           = "valid-secret"
-		userSecretData            = "DEADBEEF"
-		validSecretData           = "GROUNDBEEF"
+		clusterDomain                    = "cluster1.x8s0.s1.openshiftapps.com"
+		instanceName                     = "test"
+		instanceNameInvalidSecret        = "invalid-secret"
+		instanceNameValidSecret          = "valid-secret"
+		instanceNameRouteSelectorNil     = "route-selsctor-nil"
+		instanceNameRouteSelector        = "route-selsctor"
+		instanceNameNamespaceSelectorNil = "namespace-selector-nil"
+		instanceNameNamespaceSelector    = "namespace-selector"
+		instanceNamespace                = "my-project"
+		instanceScope                    = "Internal"
+		invalidObjectNames               = [...]string{"-test", "t#st", "te.st", "tEst"}
+		validScopeNames                  = [...]string{"", "Internal", "External"}
+		userNamespace                    = "my-project"
+		userDomain                       = "apps.foo.com"
+		userSecretName                   = "my-secret"
+		validSecretName                  = "valid-secret"
+		userSecretData                   = "DEADBEEF"
+		validSecretData                  = "GROUNDBEEF"
+		routeLabels                      = map[string]string{"type": "public"}
+		namespaceLabels                  = map[string]string{"kind": "core"}
 	)
 
 	// A CustomDomain resource with metadata and spec.
@@ -58,6 +65,78 @@ func TestCustomDomainController(t *testing.T) {
 			Certificate: corev1.SecretReference{
 				Name:      userSecretName,
 				Namespace: userNamespace,
+			},
+		},
+	}
+
+	// A CustomDomain resource with routeSelector nil.
+	customdomainRouteSelectorNil := &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      instanceNameRouteSelectorNil,
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Scope:  instanceScope,
+			Certificate: corev1.SecretReference{
+				Name:      userSecretName,
+				Namespace: userNamespace,
+			},
+			RouteSelector: nil,
+		},
+	}
+
+	// A CustomDomain resource with routeSelector.
+	customdomainRouteSelector := &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      instanceNameRouteSelector,
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Scope:  instanceScope,
+			Certificate: corev1.SecretReference{
+				Name:      userSecretName,
+				Namespace: userNamespace,
+			},
+			RouteSelector: &v1.LabelSelector{
+				MatchLabels: routeLabels,
+			},
+		},
+	}
+
+	// A CustomDomain resource with namespaceSelector nil.
+	customdomainNamespaceSelectorNil := &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      instanceNameNamespaceSelectorNil,
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Scope:  instanceScope,
+			Certificate: corev1.SecretReference{
+				Name:      userSecretName,
+				Namespace: userNamespace,
+			},
+			NamespaceSelector: nil,
+		},
+	}
+
+	// A CustomDomain resource with namespaceSelector.
+	customdomainNamespaceSelector := &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      instanceNameNamespaceSelector,
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Scope:  instanceScope,
+			Certificate: corev1.SecretReference{
+				Name:      userSecretName,
+				Namespace: userNamespace,
+			},
+			NamespaceSelector: &v1.LabelSelector{
+				MatchLabels: namespaceLabels,
 			},
 		},
 	}
@@ -149,6 +228,10 @@ func TestCustomDomainController(t *testing.T) {
 	// Objects to track in the fake client.
 	objs := []client.Object{
 		customdomain,
+		customdomainRouteSelector,
+		customdomainRouteSelectorNil,
+		customdomainNamespaceSelectorNil,
+		customdomainNamespaceSelector,
 		customdomainInvalidSecret,
 		customdomainValidSecret,
 		userSecret,
@@ -186,9 +269,139 @@ func TestCustomDomainController(t *testing.T) {
 		objs = append(objs, ing)
 	}
 
-	// generate CustomDomains with valid secret
+	// generate CustomDomains with routeSelsctor
 
 	cd := &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "routeSelectorCustomDomain",
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Certificate: corev1.SecretReference{
+				Name:      userSecretName,
+				Namespace: userNamespace,
+			},
+			RouteSelector: &v1.LabelSelector{
+				MatchLabels: routeLabels,
+			},
+		},
+	}
+	ing := &operatorv1.IngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "routeSelectorIngress",
+			Namespace: ingressOperatorNamespace,
+		},
+		Spec: operatorv1.IngressControllerSpec{
+			Domain: userDomain,
+			DefaultCertificate: &corev1.LocalObjectReference{
+				Name: userSecretName,
+			},
+		},
+	}
+	objs = append(objs, cd)
+	objs = append(objs, ing)
+
+	// generate CustomDomains with routeSelsctor nil
+
+	cd = &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "routeSelectorCustomDomainNil",
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Certificate: corev1.SecretReference{
+				Name:      userSecretName,
+				Namespace: userNamespace,
+			},
+			RouteSelector: nil,
+		},
+	}
+	ing = &operatorv1.IngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "routeSelectorNilIngress",
+			Namespace: ingressOperatorNamespace,
+		},
+		Spec: operatorv1.IngressControllerSpec{
+			Domain: userDomain,
+			DefaultCertificate: &corev1.LocalObjectReference{
+				Name: userSecretName,
+			},
+		},
+	}
+	objs = append(objs, cd)
+	objs = append(objs, ing)
+
+	// generate CustomDomains with namespaceSelsctor nil
+
+	cd = &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "namespaceSelectorCustomDomainNil",
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Scope:  instanceScope,
+			Certificate: corev1.SecretReference{
+				Name:      userSecretName,
+				Namespace: userNamespace,
+			},
+			NamespaceSelector: nil,
+		},
+	}
+	ing = &operatorv1.IngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "namespaceSelectorNilIngress",
+			Namespace: ingressOperatorNamespace,
+		},
+		Spec: operatorv1.IngressControllerSpec{
+			Domain: userDomain,
+			DefaultCertificate: &corev1.LocalObjectReference{
+				Name: userSecretName,
+			},
+		},
+	}
+	objs = append(objs, cd)
+	objs = append(objs, ing)
+
+	// generate CustomDomains with namespaceSelsctor
+
+	cd = &customdomainv1alpha1.CustomDomain{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "namespaceSelectorCustomDomain",
+			Namespace: userNamespace,
+		},
+		Spec: customdomainv1alpha1.CustomDomainSpec{
+			Domain: userDomain,
+			Scope:  instanceScope,
+			Certificate: corev1.SecretReference{
+				Name:      userSecretName,
+				Namespace: userNamespace,
+			},
+			NamespaceSelector: &v1.LabelSelector{
+				MatchLabels: namespaceLabels,
+			},
+		},
+	}
+	ing = &operatorv1.IngressController{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "namespaceSelectorIngress",
+			Namespace: ingressOperatorNamespace,
+		},
+		Spec: operatorv1.IngressControllerSpec{
+			Domain: userDomain,
+			DefaultCertificate: &corev1.LocalObjectReference{
+				Name: userSecretName,
+			},
+		},
+	}
+	objs = append(objs, cd)
+	objs = append(objs, ing)
+
+	// generate CustomDomains with valid secret
+
+	cd = &customdomainv1alpha1.CustomDomain{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "validSecretCustomDomain",
 			Namespace: userNamespace,
@@ -201,7 +414,7 @@ func TestCustomDomainController(t *testing.T) {
 			},
 		},
 	}
-	ing := &operatorv1.IngressController{
+	ing = &operatorv1.IngressController{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "validSecretIngress",
 			Namespace: ingressOperatorNamespace,
@@ -345,6 +558,58 @@ func TestCustomDomainController(t *testing.T) {
 	// Check the result of reconciliation to make sure it has the desired state.
 	if res.Requeue {
 		t.Error("reconcile requeue which is not expected")
+	}
+
+	// Check reconcile of customdomain with routeSelector
+	reqRouteSelector := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      instanceNameRouteSelector,
+			Namespace: instanceNamespace,
+		},
+	}
+
+	res, err = r.Reconcile(ctx, reqRouteSelector)
+	if err != nil {
+		t.Fatalf("Expected an error for %s CustomDomain", "routeSelectorCustomDomain")
+	}
+
+	// Check reconcile of customdomain with routeSelector nil
+	reqRouteSelectorNil := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      instanceNameRouteSelectorNil,
+			Namespace: instanceNamespace,
+		},
+	}
+
+	res, err = r.Reconcile(ctx, reqRouteSelectorNil)
+	if err != nil {
+		t.Fatalf("Expected an error for %s CustomDomain", "routeSelectorCustomDomainNil")
+	}
+
+	// Check reconcile of customdomain with namespaceSelector
+	reqNamespaceSelector := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      instanceNameNamespaceSelector,
+			Namespace: instanceNamespace,
+		},
+	}
+
+	res, err = r.Reconcile(ctx, reqNamespaceSelector)
+	if err != nil {
+		t.Fatalf("Expected an error for %s CustomDomain", "namespaceSelectorCustomDomain")
+	}
+
+	// Check reconcile of customdomain with namespaceSelector nil
+	reqNamespaceSelectorNil := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      instanceNameNamespaceSelectorNil,
+			Namespace: instanceNamespace,
+		},
+	}
+
+	res, err = r.Reconcile(ctx, reqNamespaceSelectorNil)
+	if err != nil {
+		t.Fatalf("Expected an error for %s CustomDomain", "namespaceSelectorCustomDomainNil")
 	}
 
 	// Check reconcile of customdomain with invalid secret

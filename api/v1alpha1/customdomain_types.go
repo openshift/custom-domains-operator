@@ -25,6 +25,22 @@ type CustomDomainSpec struct {
 	// +kubebuilder:validation:Enum=External;Internal
 	// +optional
 	Scope string `json:"scope,omitempty"`
+
+	// This field is used to filter the set of namespaces serviced by the
+	// CustomDomain ingress. This is useful for implementing shards.
+	//
+	// If unset, the default is no filtering.
+	//
+	// +optional
+	NamespaceSelector *metav1.LabelSelector `json:"namespaceSelector,omitempty"`
+
+	// This field is used to filter the set of Routes serviced by the ingress
+	// controller. This is useful for implementing shards.
+	//
+	// If unset, the default is no filtering.
+	//
+	// +optional
+	RouteSelector *metav1.LabelSelector `json:"routeSelector,omitempty"`
 }
 
 // CustomDomainStatus defines the observed state of CustomDomain

@@ -62,7 +62,6 @@ const customDomainFinalizer = "finalizer.customdomain.managed.openshift.io"
 //+kubebuilder:rbac:groups=managed.openshift.io,resources=customdomains/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=managed.openshift.io,resources=customdomains/finalizers,verbs=update
 
-
 // Reconcile reads that state of the cluster for a CustomDomain object and makes changes based on the state read
 // and what is in the CustomDomain.Spec
 // Note:
@@ -302,6 +301,12 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 					},
 				},
 			}
+			if instance.Spec.RouteSelector != nil {
+				customIngress.Spec.RouteSelector = instance.Spec.RouteSelector
+			}
+			if instance.Spec.NamespaceSelector != nil {
+				customIngress.Spec.NamespaceSelector = instance.Spec.NamespaceSelector
+			}
 			if customIngress.Spec.DefaultCertificate != nil {
 				customIngress.Spec.DefaultCertificate.Name = secretName
 			} else {
@@ -385,7 +390,7 @@ func (r *CustomDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	secretSelector := metav1.LabelSelector{
 		MatchExpressions: []metav1.LabelSelectorRequirement{
 			{
-				Key: managedLabelName,
+				Key:      managedLabelName,
 				Operator: metav1.LabelSelectorOpExists,
 			},
 		},
@@ -396,7 +401,7 @@ func (r *CustomDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	// secretHandler maps Secret reconcile events to the CustomDomain that utilizes the Secret
-	secretHandler := handler.EnqueueRequestsFromMapFunc(func (obj client.Object) []reconcile.Request {
+	secretHandler := handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
 		customDomainName := obj.GetLabels()[managedLabelName]
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: customDomainName}}}
 	})
