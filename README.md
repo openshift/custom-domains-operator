@@ -21,6 +21,9 @@ sudo chmod a+x /usr/local/bin/operator-sdk
 
 ### Building And Deploying
 
+Also see [Deploying the operator from a development branch for testing](DEPLOYING-FOR-TESTING.md)
+
+
 #### Setup
 Create Custom Resource Definition (CRD)
 ```
