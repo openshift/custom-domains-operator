@@ -229,6 +229,7 @@ var letters = []rune("abcdefghijklmnopqrstuvwxyz")
 func randSeq(n int) string {
 	b := make([]rune, n)
 	for i := range b {
+		// #nosec G404
 		b[i] = letters[rand.Intn(len(letters))]
 	}
 	return string(b)
