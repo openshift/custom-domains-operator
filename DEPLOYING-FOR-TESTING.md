@@ -121,5 +121,8 @@ Finally, deploy the contentes of the deploy directory:
 oc apply -f deploy/
 ```
 
+Note, that for testing follow-up updates you can use 
 
-
+```
+oc set image deployment/custom-domains-operator quay.io/foobar/cdo:<new-tag>
+```
