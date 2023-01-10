@@ -13,7 +13,7 @@ docker build . -f build/Dockerfile -t quay.io/foobar/cdo:0
 ```
 
 ```
-docker push quay.io/aliceh/cdo:0 
+docker push quay.io/foobar/cdo:0 
 ```
 
 ### Pause the sync sets for your cluster
