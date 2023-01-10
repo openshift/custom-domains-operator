@@ -1,7 +1,7 @@
 # Deploying the operator for testing
 
 This section describess testing your local changes of the custom domains operator. 
-First, create a cluster in stage where you plan to deploy the custom domains operator.
+First, create an OSD cluster in your staging environment.
 
 
 ### Building and pushing image in Quay
