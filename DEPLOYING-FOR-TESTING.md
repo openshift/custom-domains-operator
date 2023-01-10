@@ -6,7 +6,7 @@ First, create an OSD cluster in your staging environment.
 
 ### Building and pushing image in Quay
 
-To deploy the operator from your branch, you have to create an image in Quay. First, log in to quay and create a folder where you will push the image. In this example I will build the image in quay and push it to my quay account **aliceh** to a folder named **cdo**  with a tag **0**.
+To deploy the operator from your branch, you have to create an image in Quay under your personal account. For example, this will build the image in quay and push it to a personal quay account **foobar** and to a repository named **cdo**  with a tag of **0**.
 
 ```
 docker build . -f build/Dockerfile -t quay.io/ahubenko/cdo:0
