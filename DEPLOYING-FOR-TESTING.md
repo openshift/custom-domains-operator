@@ -18,7 +18,7 @@ docker push quay.io/aliceh/cdo:0
 
 ### Pause the sync sets for your cluster
 
-To pause sync sets for your cluster, log in to hive shard and run this command.
+To pause sync sets for your cluster, log into the hive shard that manages your cluster and run this command.
 
 ```
 oc annotate clusterdeployment -n <Namespace of cluster deployment>  <Name of cluster> hive.openshift.io/syncset-pause="true"
