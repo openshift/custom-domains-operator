@@ -24,6 +24,9 @@ graph LR
 
 ### Building And Deploying
 
+Also see [Deploying the operator from a development branch for testing](DEPLOYING-FOR-TESTING.md)
+
+
 #### Setup
 Create Custom Resource Definition (CRD)
 ```
