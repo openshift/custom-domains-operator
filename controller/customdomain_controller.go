@@ -269,6 +269,9 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 				Type: operatorv1.LoadBalancerServiceStrategyType,
 				LoadBalancer: &operatorv1.LoadBalancerStrategy{
 					Scope: operatorv1.LoadBalancerScope(ingressScope),
+					ProviderParameters: &operatorv1.ProviderLoadBalancerParameters{
+						Type: operatorv1.LoadBalancerProviderType(operatorv1.LoadBalancerServiceStrategyType),
+					},
 				},
 			}
 
@@ -277,15 +280,28 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 				return reconcile.Result{}, err
 			}
 			isAWS := *cloudPlatform == "AWS"
+
+			lbType := instance.Spec.LoadBalancerType
+
 			if isAWS {
-				customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters = &operatorv1.ProviderLoadBalancerParameters{
-					Type: operatorv1.AWSLoadBalancerProvider,
-					AWS: &operatorv1.AWSLoadBalancerParameters{
-						Type: "Classic",
-						ClassicLoadBalancerParameters: &operatorv1.AWSClassicLoadBalancerParameters{
-							ConnectionIdleTimeout: IngressControllerELBIdleTimeout,
+				if lbType != operatorv1.AWSNetworkLoadBalancer {
+					customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters = &operatorv1.ProviderLoadBalancerParameters{
+						Type: operatorv1.AWSLoadBalancerProvider,
+						AWS: &operatorv1.AWSLoadBalancerParameters{
+							Type: operatorv1.AWSClassicLoadBalancer,
+							ClassicLoadBalancerParameters: &operatorv1.AWSClassicLoadBalancerParameters{
+								ConnectionIdleTimeout: IngressControllerELBIdleTimeout,
+							},
 						},
-					},
+					}
+				} else {
+					customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters = &operatorv1.ProviderLoadBalancerParameters{
+						Type: operatorv1.AWSLoadBalancerProvider,
+						AWS: &operatorv1.AWSLoadBalancerParameters{
+							Type:                          operatorv1.AWSNetworkLoadBalancer,
+							NetworkLoadBalancerParameters: &operatorv1.AWSNetworkLoadBalancerParameters{},
+						},
+					}
 				}
 			}
 
