@@ -114,7 +114,7 @@ image: REPLACE_ME/custom-domains-operator:latest
 with the actual location of the image in quay, for example
 
 ```
-image: quay.io/aliceh/cdo:0
+image: quay.io/foobar/cdo:0
 ```
 Finally, deploy the contentes of the deploy directory:
 ```
