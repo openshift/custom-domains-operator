@@ -61,6 +61,24 @@ spec:
               domain:
                 description: This field can be used to define the custom domain
                 type: string
+              loadBalancerType:
+                allOf:
+                - enum:
+                  - Classic
+                  - NLB
+                - enum:
+                  - Classic
+                  - NLB
+                default: Classic
+                description: "This field is used to specify the type of AWS load balancer.
+                  \n Valid values are: \n * \"Classic\": A Classic Load Balancer that
+                  makes routing decisions at either the transport layer (TCP/SSL)
+                  or the application layer (HTTP/HTTPS). See the following for additional
+                  details: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-types.html#clb
+                  \n * \"NLB\": A Network Load Balancer that makes routing decisions
+                  at the transport layer (TCP/SSL). See the following for additional
+                  details: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-types.html#nlb"
+                type: string
               namespaceSelector:
                 description: "This field is used to filter the set of namespaces serviced
                   by the CustomDomain ingress. This is useful for implementing shards.
@@ -156,6 +174,7 @@ spec:
                 type: object
                 x-kubernetes-map-type: atomic
               scope:
+                default: External
                 description: This field determines whether the CustomDomain ingress
                   is internal or external. Defaults to External if empty.
                 enum:

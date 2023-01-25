@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	operatorv1 "github.com/openshift/api/operator/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -23,6 +24,7 @@ type CustomDomainSpec struct {
 	// This field determines whether the CustomDomain ingress is internal or external. Defaults to External if empty.
 	//
 	// +kubebuilder:validation:Enum=External;Internal
+	// +kubebuilder:default:="External"
 	// +optional
 	Scope string `json:"scope,omitempty"`
 
@@ -41,6 +43,19 @@ type CustomDomainSpec struct {
 	//
 	// +optional
 	RouteSelector *metav1.LabelSelector `json:"routeSelector,omitempty"`
+
+	// This field is used to specify the type of AWS load balancer.
+	//
+	// Valid values are:
+	//
+	// * "Classic": A Classic Load Balancer that makes routing decisions at either the transport layer (TCP/SSL) or the application layer (HTTP/HTTPS). See the following for additional details: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-types.html#clb
+	//
+	// * "NLB": A Network Load Balancer that makes routing decisions at the transport layer (TCP/SSL). See the following for additional details: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-types.html#nlb
+	//
+	// +kubebuilder:validation:Enum=Classic;NLB
+	// +kubebuilder:default:="Classic"
+	// +optional
+	LoadBalancerType operatorv1.AWSLoadBalancerType `json:"loadBalancerType,omitempty"`
 }
 
 // CustomDomainStatus defines the observed state of CustomDomain
