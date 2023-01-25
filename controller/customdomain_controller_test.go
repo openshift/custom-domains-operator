@@ -82,7 +82,8 @@ func TestCustomDomainController(t *testing.T) {
 				Name:      userSecretName,
 				Namespace: userNamespace,
 			},
-			RouteSelector: nil,
+			RouteSelector:    nil,
+			LoadBalancerType: "NLB",
 		},
 	}
 
@@ -119,6 +120,7 @@ func TestCustomDomainController(t *testing.T) {
 				Namespace: userNamespace,
 			},
 			NamespaceSelector: nil,
+			LoadBalancerType:  "Classic",
 		},
 	}
 
