@@ -105,6 +105,6 @@ dig +short $(oc get customdomain acme -o json | jq -r .status.endpoint)
 ```
 To test the app:
 ```
-curl -k https://hello-openshift-tls-my-project.stuff.alice.io --resolve hello-openshift-tls-my-project.apps.acme.io:443:<IP of the endpoint>
+curl -k https://hello-openshift-tls-my-project.apps.acme.io --resolve hello-openshift-tls-my-project.apps.acme.io:443:<IP of the endpoint>
 Hello OpenShift!
 ```
