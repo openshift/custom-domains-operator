@@ -243,10 +243,10 @@ func GetPlatformType(kclient client.Client) (*configv1.PlatformType, error) {
 
 // GetInfrastructureObject returns the canonical Infrastructure object
 func GetInfrastructureObject(kclient client.Client) (*configv1.Infrastructure, error) {
-	infrastructures := &configv1.Infrastructure{}
-	if err := kclient.Get(context.TODO(), client.ObjectKey{Name: "cluster"}, infrastructures); err != nil {
+	infrastructure := &configv1.Infrastructure{}
+	if err := kclient.Get(context.TODO(), client.ObjectKey{Name: "cluster"}, infrastructure); err != nil {
 		return nil, fmt.Errorf("failed to get default infrastructure with name cluster: %w", err)
 	}
 
-	return infrastructures, nil
+	return infrastructure, nil
 }

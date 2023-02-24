@@ -14,9 +14,8 @@ import (
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -35,8 +34,8 @@ func TestCustomDomainController(t *testing.T) {
 		instanceName                     = "test"
 		instanceNameInvalidSecret        = "invalid-secret"
 		instanceNameValidSecret          = "valid-secret"
-		instanceNameRouteSelectorNil     = "route-selsctor-nil"
-		instanceNameRouteSelector        = "route-selsctor"
+		instanceNameRouteSelectorNil     = "route-selector-nil"
+		instanceNameRouteSelector        = "route-selector"
 		instanceNameNamespaceSelectorNil = "namespace-selector-nil"
 		instanceNameNamespaceSelector    = "namespace-selector"
 		instanceNamespace                = "my-project"
@@ -100,7 +99,7 @@ func TestCustomDomainController(t *testing.T) {
 				Name:      userSecretName,
 				Namespace: userNamespace,
 			},
-			RouteSelector: &v1.LabelSelector{
+			RouteSelector: &metav1.LabelSelector{
 				MatchLabels: routeLabels,
 			},
 		},
@@ -137,7 +136,7 @@ func TestCustomDomainController(t *testing.T) {
 				Name:      userSecretName,
 				Namespace: userNamespace,
 			},
-			NamespaceSelector: &v1.LabelSelector{
+			NamespaceSelector: &metav1.LabelSelector{
 				MatchLabels: namespaceLabels,
 			},
 		},
@@ -284,7 +283,7 @@ func TestCustomDomainController(t *testing.T) {
 				Name:      userSecretName,
 				Namespace: userNamespace,
 			},
-			RouteSelector: &v1.LabelSelector{
+			RouteSelector: &metav1.LabelSelector{
 				MatchLabels: routeLabels,
 			},
 		},
@@ -381,7 +380,7 @@ func TestCustomDomainController(t *testing.T) {
 				Name:      userSecretName,
 				Namespace: userNamespace,
 			},
-			NamespaceSelector: &v1.LabelSelector{
+			NamespaceSelector: &metav1.LabelSelector{
 				MatchLabels: namespaceLabels,
 			},
 		},
@@ -476,40 +475,15 @@ func TestCustomDomainController(t *testing.T) {
 	}
 	objs = append(objs, infra)
 
-	// Register operator types with the runtime scheme.
-	s := scheme.Scheme
-
-	// Add Openshift operator v1 scheme
-	if err := operatorv1.AddToScheme(s); err != nil {
-		t.Fatalf("Unable to add operatorv1 scheme: (%v)", err)
-	}
-
-	// Add Openshift operatoringress v1 scheme
-	if err := operatoringressv1.AddToScheme(s); err != nil {
-		t.Fatalf("Unable to add operatoringressv1 scheme: (%v)", err)
-	}
-
-	// Add Openshift config v1 scheme
-	if err := configv1.AddToScheme(s); err != nil {
-		t.Fatalf("Unable to add configv1 scheme: (%v)", err)
-	}
-
-	if err := customdomainv1alpha1.AddToScheme(s); err != nil {
-		t.Fatalf("Unable to add customdomainv1alpha1 scheme: {%v}", err)
-	}
-
 	// Create a fake client to mock API calls.
-	cl := fake.NewClientBuilder().
-		WithObjects(objs...).
-		Build()
-
+	cl := NewTestMock(t, objs...)
 	if err := UpdatePlatformStatus(cl); err != nil {
 		t.Fatalf("Unable to update cloudplatform type: {%v}", err)
 	}
 
-	log.Info("Creating ReconcileCustomDomain")
+	t.Log("Creating CustomDomainReconciler")
 	// Create a ReconcileCustomDomain object with the scheme and fake client.
-	r := &CustomDomainReconciler{Client: cl, Scheme: s}
+	r := &CustomDomainReconciler{Client: cl, Scheme: cl.Scheme()}
 
 	// ========= TEST RECONCILE REQUEST =========
 	// Mock request to simulate Reconcile() being called on an event for a
@@ -946,4 +920,42 @@ func UpdatePlatformStatus(kclient client.Client) error {
 	}
 
 	return nil
+}
+
+func NewTestMock(t *testing.T, objs ...client.Object) client.Client {
+	mock, err := NewMock(objs...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return mock
+}
+
+func NewMock(obs ...client.Object) (client.Client, error) {
+	s := runtime.NewScheme()
+
+	if err := corev1.AddToScheme(s); err != nil {
+		return nil, err
+	}
+
+	// Add Openshift operator v1 scheme
+	if err := operatorv1.Install(s); err != nil {
+		return nil, err
+	}
+
+	// Add Openshift operatoringress v1 scheme
+	if err := operatoringressv1.Install(s); err != nil {
+		return nil, err
+	}
+
+	// Add Openshift config v1 scheme
+	if err := configv1.Install(s); err != nil {
+		return nil, err
+	}
+
+	if err := customdomainv1alpha1.AddToScheme(s); err != nil {
+		return nil, err
+	}
+
+	return fake.NewClientBuilder().WithScheme(s).WithObjects(obs...).Build(), nil
 }
