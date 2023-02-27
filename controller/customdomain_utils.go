@@ -12,9 +12,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -246,27 +243,10 @@ func GetPlatformType(kclient client.Client) (*configv1.PlatformType, error) {
 
 // GetInfrastructureObject returns the canonical Infrastructure object
 func GetInfrastructureObject(kclient client.Client) (*configv1.Infrastructure, error) {
-	u := &unstructured.Unstructured{}
-	u.SetGroupVersionKind(schema.GroupVersionKind{
-		Group:   "",
-		Version: "config.openshift.io/v1",
-		Kind:    "infrastructure",
-	})
-	ns := types.NamespacedName{
-		Namespace: "",
-		Name:      "cluster",
-	}
-	err := kclient.Get(context.TODO(), ns, u)
-	if err != nil {
-		return nil, err
+	infrastructure := &configv1.Infrastructure{}
+	if err := kclient.Get(context.TODO(), client.ObjectKey{Name: "cluster"}, infrastructure); err != nil {
+		return nil, fmt.Errorf("failed to get default infrastructure with name cluster: %w", err)
 	}
 
-	uContent := u.UnstructuredContent()
-	var infra *configv1.Infrastructure
-	err = runtime.DefaultUnstructuredConverter.FromUnstructured(uContent, &infra)
-	if err != nil {
-		return nil, err
-	}
-
-	return infra, nil
+	return infrastructure, nil
 }
