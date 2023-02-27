@@ -19,8 +19,8 @@ graph LR
 
 ### Prerequisites
 
-- Go 1.17+
-- Operator-SDK v1.21+
+- Go 1.19+
+- Operator-SDK v1.25+
 
 ### Building And Deploying
 
