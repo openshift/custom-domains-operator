@@ -254,14 +254,6 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 	}
 
 	// create new ingresscontrollers.openshift.io
-
-	cloudPlatform, err := GetPlatformType(r.Client)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	isAWS := *cloudPlatform == "AWS"
-
 	customIngress := &operatorv1.IngressController{}
 	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Namespace: ingressOperatorNamespace,
@@ -273,25 +265,21 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 			customIngress.Namespace = ingressOperatorNamespace
 			customIngress.Labels = labelsForOwnedResources()
 			customIngress.Spec.Domain = ingressDomain
-			if isAWS {
-				customIngress.Spec.EndpointPublishingStrategy = &operatorv1.EndpointPublishingStrategy{
-					Type: operatorv1.LoadBalancerServiceStrategyType,
-					LoadBalancer: &operatorv1.LoadBalancerStrategy{
-						Scope: operatorv1.LoadBalancerScope(ingressScope),
-						ProviderParameters: &operatorv1.ProviderLoadBalancerParameters{
-							Type: operatorv1.LoadBalancerProviderType(operatorv1.LoadBalancerServiceStrategyType),
-						},
+			customIngress.Spec.EndpointPublishingStrategy = &operatorv1.EndpointPublishingStrategy{
+				Type: operatorv1.LoadBalancerServiceStrategyType,
+				LoadBalancer: &operatorv1.LoadBalancerStrategy{
+					Scope: operatorv1.LoadBalancerScope(ingressScope),
+					ProviderParameters: &operatorv1.ProviderLoadBalancerParameters{
+						Type: operatorv1.LoadBalancerProviderType(operatorv1.LoadBalancerServiceStrategyType),
 					},
-				}
-			} else {
-				customIngress.Spec.EndpointPublishingStrategy = &operatorv1.EndpointPublishingStrategy{
-					Type: operatorv1.LoadBalancerServiceStrategyType,
-					LoadBalancer: &operatorv1.LoadBalancerStrategy{
-						Scope: operatorv1.LoadBalancerScope(ingressScope),
-					},
-				}
-
+				},
 			}
+
+			cloudPlatform, err := GetPlatformType(r.Client)
+			if err != nil {
+				return reconcile.Result{}, err
+			}
+			isAWS := *cloudPlatform == "AWS"
 
 			lbType := instance.Spec.LoadBalancerType
 
@@ -315,6 +303,8 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 						},
 					}
 				}
+			} else if *cloudPlatform == "GCP" {
+				customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters.Type = operatorv1.GCPLoadBalancerProvider
 			}
 
 			customIngress.Spec.NodePlacement = &operatorv1.NodePlacement{
