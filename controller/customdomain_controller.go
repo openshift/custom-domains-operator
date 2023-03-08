@@ -303,6 +303,8 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 						},
 					}
 				}
+			} else if *cloudPlatform == "GCP" {
+				customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters.Type = operatorv1.GCPLoadBalancerProvider
 			}
 
 			customIngress.Spec.NodePlacement = &operatorv1.NodePlacement{
