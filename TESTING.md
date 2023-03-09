@@ -50,8 +50,8 @@ To generate a self signed cert and key follow these [steps](https://www.linode.c
 Example of creating a secret and customdomain:
 ```
 oc new-project my-project
-oc create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem
-oc apply -f <(echo "
+oc create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem -n my-project  --as backplane-cluster-admin
+oc apply --as backplane-cluster-admin -f <(echo "
 apiVersion: managed.openshift.io/v1alpha1
 kind: CustomDomain
 metadata:
@@ -69,7 +69,7 @@ spec:
 #### Get DNS Record from CR
 Example:
 ```
-oc get customdomain acme -o json | jq -r .status.dnsRecord
+oc get customdomain acme --as backplane-cluster-admin -o json | jq -r .status.dnsRecord
 *.acme.cluster01.x8s0.s1.openshiftapps.com
 ```
 
@@ -84,7 +84,7 @@ Example:
 #### Create and Test App
 Example:
 ```
-oc new-app --docker-image=docker.io/openshift/hello-openshift
+oc new-app --docker-image=docker.io/openshift/hello-openshift --as backplane-cluster-admin
 $ oc create route edge --service=hello-openshift hello-openshift-tls --hostname hello-openshift-tls-my-project.apps.acme.io
 $ curl https://hello-openshift-tls-my-project.apps.acme.io
 Hello OpenShift!
@@ -95,13 +95,13 @@ Hello OpenShift!
 Example for creating an app and a route:
 
 ```
-oc new-app --docker-image=docker.io/openshift/hello-openshift -n my-project
+oc new-app --docker-image=docker.io/openshift/hello-openshift -n my-project --as backplane-cluster-admin
 oc create route edge -n my-project --service=hello-openshift hello-openshift-tls --hostname hello-openshift-tls-my-project.apps.acme.io
 ```
 To find the IP of the endpoint use this command:
 
 ```
-dig +short $(oc get customdomain acme -o json | jq -r .status.endpoint)
+dig +short $(oc get customdomain acme --as backplane-cluster-admin -o json | jq -r .status.endpoint)
 ```
 To test the app:
 ```
