@@ -49,7 +49,7 @@ To generate a self signed cert and key follow these [steps](https://www.linode.c
 
 Example of creating a secret and customdomain:
 ```
-oc new-project my-project
+oc create ns my-project
 oc create secret tls acme-tls --cert=fullchain.pem --key=privkey.pem -n my-project  --as backplane-cluster-admin
 oc apply --as backplane-cluster-admin -f <(echo "
 apiVersion: managed.openshift.io/v1alpha1
