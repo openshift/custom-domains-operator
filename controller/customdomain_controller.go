@@ -27,6 +27,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+//
+//We are planning to EOL CDO as part of https://issues.redhat.com/browse/SDE-1768
+//
+
 var log = logf.Log.WithName("controller_customdomain")
 
 // restrictedIngressNames contains an array of known managed ingresscontroller

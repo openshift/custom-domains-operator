@@ -23,6 +23,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+//We are planning to EOL CDO as part of https://issues.redhat.com/browse/SDE-1768
+
 // TestCustomDomainController runs ReconcileCustomDomain.Reconcile() against a
 // fake client that tracks a CustomDomain object.
 func TestCustomDomainController(t *testing.T) {
