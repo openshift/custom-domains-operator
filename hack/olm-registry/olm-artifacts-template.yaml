@@ -27,6 +27,10 @@ objects:
     clusterDeploymentSelector:
       matchLabels:
         api.openshift.com/managed: 'true'
+      matchExpressions:
+        - key: hive.openshift.io/version-major-minor
+          operator: In
+          values: ["4.5", "4.6", "4.7", "4.8", "4.9", "4.10", "4.11", "4.12"]
     resourceApplyMode: Sync
     resources:
     - kind: Namespace
