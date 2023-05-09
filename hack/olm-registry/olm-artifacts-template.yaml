@@ -27,6 +27,10 @@ objects:
     clusterDeploymentSelector:
       matchLabels:
         api.openshift.com/managed: 'true'
+      matchExpressions:
+        - key: ext-managed.openshift.io/legacy-ingress-support
+          operator: NotIn
+          values: ["false"]
     resourceApplyMode: Sync
     resources:
     - kind: Namespace
