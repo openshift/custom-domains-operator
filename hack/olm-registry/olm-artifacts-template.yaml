@@ -49,6 +49,13 @@ objects:
         namespace: openshift-custom-domains-operator
       spec:
         image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
+        grpcPodConfig:
+          nodeSelector:
+            node-role.kubernetes.io: infra
+          tolerations:
+            - effect: NoSchedule
+              key: node-role.kubernetes.io/infra
+              operator: Exists
         affinity:
           nodeAffinity:
             preferredDuringSchedulingIgnoredDuringExecution:
@@ -87,4 +94,3 @@ objects:
       spec:
         targetNamespaces:
         - openshift-custom-domains-operator
-
