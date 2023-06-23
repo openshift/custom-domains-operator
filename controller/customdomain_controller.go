@@ -24,7 +24,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 var log = logf.Log.WithName("controller_customdomain")
@@ -418,15 +417,14 @@ func (r *CustomDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 
-	// secretHandler maps Secret reconcile events to the CustomDomain that utilizes the Secret
-	secretHandler := handler.EnqueueRequestsFromMapFunc(func(obj client.Object) []reconcile.Request {
+	secretHandler := handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
 		customDomainName := obj.GetLabels()[managedLabelName]
 		return []reconcile.Request{{NamespacedName: types.NamespacedName{Name: customDomainName}}}
 	})
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&customdomainv1alpha1.CustomDomain{}).
-		Watches(&source.Kind{Type: &corev1.Secret{}},
+		Watches(&corev1.Secret{},
 			secretHandler,
 			builder.WithPredicates(secretSelectorPredicate)).
 		Complete(r)
