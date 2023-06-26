@@ -781,7 +781,7 @@ func TestCustomDomainController(t *testing.T) {
 		}
 		log.Info("Deleting customdomain instance")
 		customdomain.SetDeletionTimestamp(&now)
-		err = r.Client.Update(context.TODO(), customdomain)
+		err = r.Client.Delete(context.TODO(), customdomain)
 		if err != nil {
 			t.Fatalf("update failed: (%v)", err)
 		}
@@ -818,7 +818,7 @@ func TestCustomDomainController(t *testing.T) {
 		}
 		log.Info("Deleting customdomain instance")
 		customdomain.SetDeletionTimestamp(&now)
-		err = r.Client.Update(context.TODO(), customdomain)
+		err = r.Client.Delete(context.TODO(), customdomain)
 		if err != nil {
 			t.Fatalf("update failed: (%v)", err)
 		}
@@ -957,5 +957,5 @@ func NewMock(obs ...client.Object) (client.Client, error) {
 		return nil, err
 	}
 
-	return fake.NewClientBuilder().WithScheme(s).WithObjects(obs...).Build(), nil
+	return fake.NewClientBuilder().WithStatusSubresource(obs...).WithScheme(s).WithObjects(obs...).Build(), nil
 }
