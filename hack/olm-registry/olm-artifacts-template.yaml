@@ -27,10 +27,6 @@ objects:
     clusterDeploymentSelector:
       matchLabels:
         api.openshift.com/managed: 'true'
-      matchExpressions:
-        - key: ext-managed.openshift.io/legacy-ingress-support
-          operator: NotIn
-          values: ["false"]
     resourceApplyMode: Sync
     resources:
     - kind: Namespace
@@ -98,3 +94,28 @@ objects:
       spec:
         targetNamespaces:
         - openshift-custom-domains-operator
+- apiVersion: hive.openshift.io/v1
+  kind: SelectorSyncSet
+  metadata:
+    labels:
+      managed.openshift.io/gitHash: ${IMAGE_TAG}
+      managed.openshift.io/gitRepoName: ${REPO_NAME}
+      managed.openshift.io/osd: 'true'
+    name: custom-domains-operator-feature-labeller
+  spec:
+    clusterDeploymentSelector:
+      matchLabels:
+        api.openshift.com/managed: 'true'
+      matchExpressions:
+      - key: ext-managed.openshift.io/legacy-ingress-support
+        operator: In
+        values:
+          - "false"
+    patches:
+    - apiVersion: v1
+      kind: namespace
+      name: openshift-custom-domains-operator
+      patch: >
+        {"metadata": {"labels": {"ext-managed.openshift.io/legacy-ingress-support": "false"}}}
+      patchType: merge
+    resourceApplyMode: Sync

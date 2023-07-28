@@ -12,9 +12,11 @@ import (
 	operatorv1 "github.com/openshift/api/operator/v1"
 	operatoringressv1 "github.com/openshift/api/operatoringress/v1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/api/v1alpha1"
+	"github.com/openshift/custom-domains-operator/config"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -52,6 +54,32 @@ func TestCustomDomainController(t *testing.T) {
 		namespaceLabels                  = map[string]string{"kind": "core"}
 	)
 
+	clusterVersion := &configv1.ClusterVersion{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "version",
+			Namespace: "",
+		},
+		Status: configv1.ClusterVersionStatus{
+			History: []configv1.UpdateHistory{
+				{
+					Version: "4.12.0",
+				},
+			},
+		},
+	}
+
+	clusterVersion.SetGroupVersionKind(schema.GroupVersionKind{
+		Group:   "",
+		Version: "config.openshift.io/v1",
+		Kind:    "ClusterVersion",
+	})
+
+	operatorNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: config.OperatorNamespace,
+		},
+	}
+
 	// A CustomDomain resource with metadata and spec.
 	customdomain := &customdomainv1alpha1.CustomDomain{
 		ObjectMeta: metav1.ObjectMeta{
@@ -85,7 +113,6 @@ func TestCustomDomainController(t *testing.T) {
 			LoadBalancerType: "NLB",
 		},
 	}
-
 	// A CustomDomain resource with routeSelector.
 	customdomainRouteSelector := &customdomainv1alpha1.CustomDomain{
 		ObjectMeta: metav1.ObjectMeta{
@@ -228,6 +255,8 @@ func TestCustomDomainController(t *testing.T) {
 
 	// Objects to track in the fake client.
 	objs := []client.Object{
+		operatorNamespace,
+		clusterVersion,
 		customdomain,
 		customdomainRouteSelector,
 		customdomainRouteSelectorNil,
@@ -518,6 +547,7 @@ func TestCustomDomainController(t *testing.T) {
 
 	// test reconcile w/ missing dnsRecord
 	res, err = r.Reconcile(ctx, req)
+
 	if err != nil {
 		t.Fatalf("reconcile, returned error w/ missing dnsRecord")
 	}
@@ -893,6 +923,65 @@ func TestCustomDomainController(t *testing.T) {
 	}, actualCustomIngress)
 	if err == nil {
 		t.Fatalf("ingresscontroller %s was not deleted!", instanceName)
+	}
+
+	// _ = r.Client.(context.TODO(), clusterVersion)
+	// clusterVersion.Status.History[0] = configv1.UpdateHistory{
+	// 	Version: "4.13.0",
+	// }
+	clusterVersion.Status = configv1.ClusterVersionStatus{
+			History: []configv1.UpdateHistory{
+				{
+					Version: "4.13.0",
+				},
+			},
+		}
+
+	operatorNamespace.Labels = map[string]string{
+		legacyIngressSupportLabel: "false",
+	}
+
+	_ = r.Client.Update(context.TODO(), operatorNamespace)
+
+	_ = r.Client.Status().Update(context.TODO(), clusterVersion)
+
+	t.Log("Re-creating CustomDomainReconciler request")
+	req = reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Name:      instanceNameValidSecret,
+			Namespace: instanceNamespace,
+		},
+	}
+
+	res, _ = r.Reconcile(ctx, req)
+	if res != (reconcile.Result{}) {
+		t.Error("reconcile did not return an empty Result")
+	}
+
+	_ = r.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      instanceNameValidSecret,
+		Namespace: ingressOperatorNamespace,
+	}, ing)
+
+	_ = r.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      validSecretName,
+		Namespace: userNamespace,
+	}, validSecret)
+
+	workerNodeSelector := &metav1.LabelSelector{
+		MatchLabels: map[string]string{"node-role.kubernetes.io/worker": ""},
+	}
+
+	if len(ing.Spec.NodePlacement.Tolerations) != 0 && !reflect.DeepEqual(ing.Spec.NodePlacement.NodeSelector, workerNodeSelector) {
+		t.Error("reconcile did not reschedule ingress on worker nodes")
+	}
+
+	if _, ok := ing.Labels[managedLabelName]; ok {
+		t.Error("reconcile did not remove ingress ownership labels")
+	}
+
+	if _, ok := validSecret.Labels[managedLabelName]; ok {
+		t.Error("reconcile did not remove secret labels")
 	}
 }
 

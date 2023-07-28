@@ -71,8 +71,8 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 	reqLogger := log.WithValues("Request.Namespace", request.Namespace, "Request.Name", request.Name)
 	reqLogger.Info("Reconciling CustomDomain")
 
-	// Fetch the CustomDomain instance
 	instance := &customdomainv1alpha1.CustomDomain{}
+
 	err := r.Client.Get(context.TODO(), request.NamespacedName, instance)
 	if err != nil {
 		if kerr.IsNotFound(err) {
@@ -84,6 +84,17 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 		// Error reading the object - requeue the request.
 		return reconcile.Result{}, err
 	}
+	clusterVersion, err := r.GetClusterVersion(r.Client)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	reqLogger.Info("Checking if cluster is using new managed ingress feature")
+	usingNewManagedIngress, err := isUsingNewManagedIngressFeature(r.Client, reqLogger)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 
 	// Check if the CustomDomain instance is marked to be deleted, which is
 	// indicated by the deletion timestamp being set.
@@ -106,6 +117,11 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 			}
 		}
 		return reconcile.Result{}, nil
+	}
+
+	if IsVersionGreaterOrEqualThan(clusterVersion, "4.13") && usingNewManagedIngress {
+		reqLogger.Info("Cluster using new managed ingress feature and is greater than 4.13")
+		return r.returnIngressToClusterIngressOperator(reqLogger, instance)
 	}
 
 	// Add finalizer for this CR
@@ -258,6 +274,7 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 		Namespace: ingressOperatorNamespace,
 		Name:      ingressName,
 	}, customIngress)
+
 	if err != nil {
 		if kerr.IsNotFound(err) {
 			customIngress.Name = ingressName
