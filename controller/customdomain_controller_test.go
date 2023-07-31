@@ -731,6 +731,35 @@ func TestCustomDomainController(t *testing.T) {
 	if err != nil {
 		t.Error("Unable to patch customdomain scope")
 	}
+
+	// Verify ingress LB timeout logic - modify LB timeout, re-reconcile, and confirm it's unchanged
+	actualCustomIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters.AWS.ClassicLoadBalancerParameters.ConnectionIdleTimeout.Duration = 10*time.Second
+	err = r.Client.Update(context.TODO(), actualCustomIngress)
+	if err != nil {
+		t.Errorf("failed to modify ingresscontroller to test timeout modification: %v", err)
+	}
+
+
+	res, err = r.Reconcile(ctx, req)
+	if err != nil {
+		t.Error("failed to re-reconcile when checking LB timeout logic")
+	}
+	if !res.Requeue {
+		t.Error("expected to requeue after modifying LB timeout")
+	}
+
+	err = r.Client.Get(context.TODO(), types.NamespacedName{
+		Name:      instanceName,
+		Namespace: ingressOperatorNamespace,
+	}, actualCustomIngress)
+	if err != nil {
+		t.Fatalf("failed to get ingresscontroller %s: %v", instanceName, err)
+	}
+	if actualCustomIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters.AWS.ClassicLoadBalancerParameters.ConnectionIdleTimeout != IngressControllerELBIdleTimeout {
+		t.Fatalf("did not update ingresscontroller LB timeout")
+	}
+
+
 	// Reconcile again so Reconcile() and check result
 	res, err = r.Reconcile(ctx, req)
 	if err != nil {

@@ -144,6 +144,9 @@ const (
 	// CustomDomainConditionInvalidScope is set when the loadbalancer scope is modified
 	CustomDomainConditionInvalidScope CustomDomainConditionType = "InvalidScope"
 
+	// CustomDomainConditionInvalidTimeout is set when the loadbalancer timeout is incorrect
+	CustomDomainConditionInvalidTimeout CustomDomainConditionType = "InvalidTimeout"
+
 	// CustomDomainConditionFailed is set when custom domain creation has failed
 	CustomDomainConditionFailed CustomDomainConditionType = "Failed"
 
