@@ -1,4 +1,4 @@
-FROM quay.io/app-sre/boilerplate:image-v3.0.3 AS builder
+FROM quay.io/app-sre/boilerplate:image-v3.0.4 AS builder
 
 RUN mkdir /src
 
@@ -12,7 +12,7 @@ COPY . /src
 
 RUN make gobuild
 
-FROM registry.access.redhat.com/ubi8/ubi-minimal:8.8-860
+FROM registry.access.redhat.com/ubi8/ubi-minimal:8.8-1014
 ENV OPERATOR=/usr/local/bin/custom-domains-operator \
     USER_UID=1001 \
     USER_NAME=custom-domains-operator
