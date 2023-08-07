@@ -263,6 +263,7 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 			customIngress.Name = ingressName
 			customIngress.Namespace = ingressOperatorNamespace
 			customIngress.Labels = labelsForOwnedResources()
+			customIngress.OwnerReferences = append(customIngress.OwnerReferences, *metav1.NewControllerRef(&instance.ObjectMeta, instance.GroupVersionKind()))
 			customIngress.Spec.Domain = ingressDomain
 			customIngress.Spec.EndpointPublishingStrategy = &operatorv1.EndpointPublishingStrategy{
 				Type: operatorv1.LoadBalancerServiceStrategyType,
@@ -339,20 +340,39 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 			return reconcile.Result{}, err
 		}
 	} else {
-		// TODO: Check for scope change when customIngress.Spec.EndpointPublishingStrategy is nil
-		if customIngress.Spec.EndpointPublishingStrategy != nil &&
-			customIngress.Spec.EndpointPublishingStrategy.LoadBalancer != nil &&
-			string(customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope) != ingressScope {
-			errStr := fmt.Sprintf("Invalid update to ingress scope (detected change from %s to %s)", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope)
-			reqLogger.Info(fmt.Sprintf("The 'scope' field is immutable: detected change from %s to %s. To register a domain with %s scope, a new CustomDomain object will need to be defined.", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope, ingressScope))
-			SetCustomDomainStatus(
-				reqLogger,
-				instance,
-				errStr,
-				customdomainv1alpha1.CustomDomainConditionInvalidScope,
-				customdomainv1alpha1.CustomDomainStateNotReady)
-			_ = r.statusUpdate(reqLogger, instance)
-			return reconcile.Result{}, errors.New(errStr)
+		// Validate ingress' EndpointPublishingStrategy
+		if customIngress.Spec.EndpointPublishingStrategy != nil {
+			// Validate the EndpointPublishingStrategy's LB configuration
+			if customIngress.Spec.EndpointPublishingStrategy.LoadBalancer != nil {
+				// Ensure scope has not been modified
+				if string(customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope) != ingressScope {
+					// TODO: Check for scope change when customIngress.Spec.EndpointPublishingStrategy is nil
+					errStr := fmt.Sprintf("Invalid update to ingress scope (detected change from %s to %s)", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope)
+					reqLogger.Info(fmt.Sprintf("The 'scope' field is immutable: detected change from %s to %s. To register a domain with %s scope, a new CustomDomain object will need to be defined.", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope, ingressScope))
+					SetCustomDomainStatus(
+						reqLogger,
+						instance,
+						errStr,
+						customdomainv1alpha1.CustomDomainConditionInvalidScope,
+						customdomainv1alpha1.CustomDomainStateNotReady)
+					_ = r.statusUpdate(reqLogger, instance)
+					return reconcile.Result{}, errors.New(errStr)
+				}
+				// Ensure the timeout is set correctly
+				platform, err := GetPlatformType(r.Client)
+				if err != nil {
+					return reconcile.Result{}, fmt.Errorf("failed to determine platform type: %w", err)
+				}
+				if *platform == "AWS" {
+					// Check AWS LB timeout
+					if customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters.AWS.ClassicLoadBalancerParameters.ConnectionIdleTimeout.Duration.Seconds() != float64(ELBIdleTimeoutDuration) {
+						SetCustomDomainStatus(reqLogger, instance, fmt.Sprintf("ingresscontroller timeout not set to %d seconds", ELBIdleTimeoutDuration), customdomainv1alpha1.CustomDomainConditionInvalidTimeout, customdomainv1alpha1.CustomDomainStateNotReady)
+						customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters.AWS.ClassicLoadBalancerParameters.ConnectionIdleTimeout = IngressControllerELBIdleTimeout
+						err = r.Client.Update(context.TODO(), customIngress)
+						return reconcile.Result{Requeue: true, RequeueAfter: 1}, err
+					}
+				}
+			}
 		}
 		reqLogger.Info(fmt.Sprintf("The ingresscontroller %s already exists in the %s namespace", ingressName, ingressOperatorNamespace))
 	}
@@ -427,5 +447,6 @@ func (r *CustomDomainReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(&corev1.Secret{},
 			secretHandler,
 			builder.WithPredicates(secretSelectorPredicate)).
+		Owns(&operatorv1.IngressController{}).
 		Complete(r)
 }
