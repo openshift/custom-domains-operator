@@ -297,30 +297,10 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 			}
 			isAWS := *cloudPlatform == "AWS"
 
-			lbType := instance.Spec.LoadBalancerType
-
 			if isAWS {
-				if lbType != operatorv1.AWSNetworkLoadBalancer {
-					customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters = &operatorv1.ProviderLoadBalancerParameters{
-						Type: operatorv1.AWSLoadBalancerProvider,
-						AWS: &operatorv1.AWSLoadBalancerParameters{
-							Type: operatorv1.AWSClassicLoadBalancer,
-							ClassicLoadBalancerParameters: &operatorv1.AWSClassicLoadBalancerParameters{
-								ConnectionIdleTimeout: IngressControllerELBIdleTimeout,
-							},
-						},
-					}
-				} else {
-					customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters = &operatorv1.ProviderLoadBalancerParameters{
-						Type: operatorv1.AWSLoadBalancerProvider,
-						AWS: &operatorv1.AWSLoadBalancerParameters{
-							Type:                          operatorv1.AWSNetworkLoadBalancer,
-							NetworkLoadBalancerParameters: &operatorv1.AWSNetworkLoadBalancerParameters{},
-						},
-					}
-				}
+				r.setAWSProviderParameters(*instance, customIngress)
 			} else if *cloudPlatform == "GCP" {
-				customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters.Type = operatorv1.GCPLoadBalancerProvider
+				r.setGCPProviderParameters(*instance, customIngress)
 			}
 
 			customIngress.Spec.NodePlacement = &operatorv1.NodePlacement{
@@ -356,22 +336,41 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 			return reconcile.Result{}, err
 		}
 	} else {
-		// TODO: Check for scope change when customIngress.Spec.EndpointPublishingStrategy is nil
-		if customIngress.Spec.EndpointPublishingStrategy != nil &&
-			customIngress.Spec.EndpointPublishingStrategy.LoadBalancer != nil &&
-			string(customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope) != ingressScope {
-			errStr := fmt.Sprintf("Invalid update to ingress scope (detected change from %s to %s)", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope)
-			reqLogger.Info(fmt.Sprintf("The 'scope' field is immutable: detected change from %s to %s. To register a domain with %s scope, a new CustomDomain object will need to be defined.", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope, ingressScope))
-			SetCustomDomainStatus(
-				reqLogger,
-				instance,
-				errStr,
-				customdomainv1alpha1.CustomDomainConditionInvalidScope,
-				customdomainv1alpha1.CustomDomainStateNotReady)
-			_ = r.statusUpdate(reqLogger, instance)
-			return reconcile.Result{}, errors.New(errStr)
+		// Validate ingress' EndpointPublishingStrategy
+		if customIngress.Spec.EndpointPublishingStrategy != nil {
+			// Validate the EndpointPublishingStrategy's LB configuration
+			if customIngress.Spec.EndpointPublishingStrategy.LoadBalancer != nil {
+				// Ensure scope has not been modified
+				if string(customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope) != ingressScope {
+					// TODO: Check for scope change when customIngress.Spec.EndpointPublishingStrategy is nil
+					errStr := fmt.Sprintf("Invalid update to ingress scope (detected change from %s to %s)", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope)
+					reqLogger.Info(fmt.Sprintf("The 'scope' field is immutable: detected change from %s to %s. To register a domain with %s scope, a new CustomDomain object will need to be defined.", customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope, ingressScope, ingressScope))
+					SetCustomDomainStatus(
+						reqLogger,
+						instance,
+						errStr,
+						customdomainv1alpha1.CustomDomainConditionInvalidScope,
+						customdomainv1alpha1.CustomDomainStateNotReady)
+					_ = r.statusUpdate(reqLogger, instance)
+					return reconcile.Result{}, errors.New(errStr)
+				}
+				// Ensure the timeout is set correctly
+				platform, err := GetPlatformType(r.Client)
+				if err != nil {
+					return reconcile.Result{}, fmt.Errorf("failed to determine platform type: %w", err)
+				}
+				if *platform == "AWS" {
+					r.setAWSProviderParameters(*instance, customIngress)
+				} else if *platform == "GCP" {
+					r.setGCPProviderParameters(*instance, customIngress)
+				}
+			}
 		}
-		reqLogger.Info(fmt.Sprintf("The ingresscontroller %s already exists in the %s namespace", ingressName, ingressOperatorNamespace))
+		err = r.Client.Update(context.TODO(), customIngress)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		reqLogger.Info(fmt.Sprintf("Validated existing ingresscontroller (%s/%s)", customIngress.Namespace, customIngress.Name))
 	}
 
 	// Obtain the dnsRecord to set in the CR status for final completion, requeue if not available
@@ -411,6 +410,34 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
+}
+
+func (r *CustomDomainReconciler) setAWSProviderParameters(instance customdomainv1alpha1.CustomDomain, customIngress *operatorv1.IngressController) {
+	lbType := instance.Spec.LoadBalancerType
+	if lbType != operatorv1.AWSNetworkLoadBalancer {
+		customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters = &operatorv1.ProviderLoadBalancerParameters{
+			Type: operatorv1.AWSLoadBalancerProvider,
+			AWS: &operatorv1.AWSLoadBalancerParameters{
+				Type: operatorv1.AWSClassicLoadBalancer,
+				ClassicLoadBalancerParameters: &operatorv1.AWSClassicLoadBalancerParameters{
+					ConnectionIdleTimeout: IngressControllerELBIdleTimeout,
+				},
+			},
+		}
+		return
+	}
+
+	customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters = &operatorv1.ProviderLoadBalancerParameters{
+		Type: operatorv1.AWSLoadBalancerProvider,
+		AWS: &operatorv1.AWSLoadBalancerParameters{
+			Type:                          operatorv1.AWSNetworkLoadBalancer,
+			NetworkLoadBalancerParameters: &operatorv1.AWSNetworkLoadBalancerParameters{},
+		},
+	}
+}
+
+func (r *CustomDomainReconciler) setGCPProviderParameters(instance customdomainv1alpha1.CustomDomain, customIngress *operatorv1.IngressController) {
+	customIngress.Spec.EndpointPublishingStrategy.LoadBalancer.ProviderParameters.Type = operatorv1.GCPLoadBalancerProvider
 }
 
 // labelsForOwnedResources creates a simple set of labels for all routes.
