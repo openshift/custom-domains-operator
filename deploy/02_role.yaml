@@ -26,6 +26,15 @@ rules:
   - watch
 
 - apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
+  - watch
+
+- apiGroups:
   - apps
   resources:
   - deployments
@@ -109,6 +118,7 @@ rules:
   - list
   - watch
 
+
 - apiGroups:
   - ingress.operator.openshift.io
   resources:
@@ -122,6 +132,7 @@ rules:
   - config.openshift.io
   resources:
   - infrastructures
+  - clusterversions
   verbs:
   - get
   - list

@@ -135,6 +135,9 @@ const (
 	// CustomDomainConditionCreating is set when a CustomDomain is being created
 	CustomDomainConditionCreating CustomDomainConditionType = "Creating"
 
+	// CustomDomainConditionDeprecated is set when a CustomDomain has returned to native ingress controller
+	CustomDomainConditionDeprecated CustomDomainConditionType = "Deprecated"
+
 	// CustomDomainConditionSecretNotFound is set when the TLS secret has not been found yet
 	CustomDomainConditionSecretNotFound CustomDomainConditionType = "SecretNotFound"
 
