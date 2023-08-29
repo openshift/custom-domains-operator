@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	routev1 "github.com/openshift/api/route/v1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/api/v1alpha1"
+	"github.com/openshift/custom-domains-operator/config"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	"github.com/openshift/osde2e-common/pkg/gomega/assertions"
 	appsv1 "k8s.io/api/apps/v1"
@@ -116,6 +117,11 @@ var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 			}
 			return false
 		}).WithTimeout(5*time.Minute).WithPolling(pollInterval).Should(BeTrue(), "Endpoint never became ready")
+	})
+
+	ginkgo.It("can be upgraded", func(ctx context.Context) {
+		err := k8s.UpgradeOperator(ctx, config.OperatorName, config.OperatorNamespace)
+		Expect(err).NotTo(HaveOccurred(), "operator upgrade failed")
 	})
 
 	ginkgo.It("allows dedicated admin to create and expose test app using a CustomDomain", func(ctx context.Context) {
