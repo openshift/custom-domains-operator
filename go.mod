@@ -16,7 +16,7 @@ require (
 require (
 	github.com/onsi/ginkgo/v2 v2.9.5
 	github.com/onsi/gomega v1.27.7
-	github.com/openshift/osde2e-common v0.0.0-20230621125319-93f8f034f3aa
+	github.com/openshift/osde2e-common v0.0.0-20230828192052-1b1a774e2df6
 )
 
 require (
