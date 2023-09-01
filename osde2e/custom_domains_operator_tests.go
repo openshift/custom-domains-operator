@@ -118,8 +118,8 @@ var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 			return false
 		}).WithTimeout(5*time.Minute).WithPolling(pollInterval).Should(BeTrue(), "Endpoint never became ready")
 	})
-	ginkgo.It("upgrades operator", func(ctx context.Context) {
-		ginkgo.By("testing operator upgrade")
+
+	ginkgo.It("can be upgraded", func(ctx context.Context) {
 		err := k8s.UpgradeOperator(ctx, config.OperatorName, config.OperatorNamespace)
 		Expect(err).NotTo(HaveOccurred(), "operator upgrade failed")
 	})
