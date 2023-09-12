@@ -22,8 +22,10 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/api/v1alpha1"
+	managed "github.com/openshift/custom-domains-operator/controller"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	"github.com/openshift/osde2e-common/pkg/gomega/assertions"
 	appsv1 "k8s.io/api/apps/v1"
@@ -67,6 +69,17 @@ var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 		impersonatedResourceClient, err = k8s.Impersonate("test-user@redhat.com", "dedicated-admins")
 		Expect(err).ShouldNot(HaveOccurred(), "Unable to setup k8s client")
 		Expect(customdomainv1alpha1.AddToScheme(impersonatedResourceClient.GetScheme())).Should(Succeed(), "Unable to register customdomainv1alpha1 api scheme")
+
+		// get clusterversion
+		clusterVersionObject := new(configv1.ClusterVersion)
+		Expect(k8s.Get(ctx, "version", "", clusterVersionObject)).Should(Succeed(), "Unable to get ClusterVerion")
+
+		usingNewManagedIngress, err := managed.IsUsingNewManagedIngressFeature(k8s.GetControllerRuntimeClient(), ginkgo.GinkgoLogr)
+		Expect(err).ShouldNot(HaveOccurred(), "Failed to check for managed ingress feature")
+
+		if managed.IsVersionGreaterOrEqualThan(clusterVersionObject.Status.History[0].Version, "4.13") && usingNewManagedIngress {
+			ginkgo.Skip("deprecated on >=4.13: https://github.com/openshift/custom-domains-operator#deprecation")
+		}
 	})
 
 	// BeforeEach initializes a CustomDomain for testing
@@ -116,6 +129,13 @@ var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 			}
 			return false
 		}).WithTimeout(5*time.Minute).WithPolling(pollInterval).Should(BeTrue(), "Endpoint never became ready")
+
+		ginkgo.DeferCleanup(func() {
+			ginkgo.By("Cleaning up setup")
+			Expect(k8s.Delete(ctx, testCustomDomain)).Should(Succeed(), "Failed to delete CustomDomain")
+			Expect(k8s.Delete(ctx, testCustomDomainSecret)).Should(Succeed(), "Failed to delete secret")
+			Expect(k8s.Delete(ctx, testNamespace)).Should(Succeed(), "Failed to delete namespace")
+		})
 	})
 
 	ginkgo.It("allows dedicated admin to create and expose test app using a CustomDomain", func(ctx context.Context) {
@@ -178,14 +198,6 @@ var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 			}
 			return true
 		}).WithTimeout(5*time.Minute).WithPolling(pollInterval).Should(BeTrue(), "TLS cert change never took effect")
-	})
-
-	// AfterEach deletes resources created by BeforeEach
-	ginkgo.AfterEach(func(ctx context.Context) {
-		ginkgo.By("Cleaning up setup")
-		Expect(k8s.Delete(ctx, testCustomDomain)).Should(Succeed(), "Failed to delete CustomDomain")
-		Expect(k8s.Delete(ctx, testCustomDomainSecret)).Should(Succeed(), "Failed to delete secret")
-		Expect(k8s.Delete(ctx, testNamespace)).Should(Succeed(), "Failed to delete namespace")
 	})
 })
 

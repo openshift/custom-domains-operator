@@ -90,7 +90,7 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 	}
 
 	reqLogger.Info("Checking if cluster is using new managed ingress feature")
-	usingNewManagedIngress, err := isUsingNewManagedIngressFeature(r.Client, reqLogger)
+	usingNewManagedIngress, err := IsUsingNewManagedIngressFeature(r.Client, reqLogger)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
