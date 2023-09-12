@@ -361,7 +361,7 @@ func (r *CustomDomainReconciler) GetClusterVersion(kclient client.Client) (strin
 	return versionObject.Status.History[0].Version, nil
 }
 
-func isUsingNewManagedIngressFeature(kclient client.Client, reqLogger logr.Logger) (bool, error) {
+func IsUsingNewManagedIngressFeature(kclient client.Client, reqLogger logr.Logger) (bool, error) {
 	reqLogger.Info("Fetching labels from namespace", "namespace", config.OperatorNamespace)
 	ns := corev1.Namespace{}
 	if err := kclient.Get(context.TODO(), client.ObjectKey{Name: config.OperatorNamespace}, &ns); err != nil {
