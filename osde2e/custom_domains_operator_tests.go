@@ -25,8 +25,8 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	routev1 "github.com/openshift/api/route/v1"
 	customdomainv1alpha1 "github.com/openshift/custom-domains-operator/api/v1alpha1"
-	managed "github.com/openshift/custom-domains-operator/controller"
 	"github.com/openshift/custom-domains-operator/config"
+	managed "github.com/openshift/custom-domains-operator/controller"
 	"github.com/openshift/osde2e-common/pkg/clients/openshift"
 	"github.com/openshift/osde2e-common/pkg/gomega/assertions"
 	appsv1 "k8s.io/api/apps/v1"
@@ -139,11 +139,6 @@ var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 		})
 	})
 
-	ginkgo.It("can be upgraded", func(ctx context.Context) {
-		err := k8s.UpgradeOperator(ctx, config.OperatorName, config.OperatorNamespace)
-		Expect(err).NotTo(HaveOccurred(), "operator upgrade failed")
-	})
-
 	ginkgo.It("allows dedicated admin to create and expose test app using a CustomDomain", func(ctx context.Context) {
 		ginkgo.By("Creating deployment")
 		testDeployment = makeDeployment(testAppName, testNamespaceName)
@@ -204,6 +199,19 @@ var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 			}
 			return true
 		}).WithTimeout(5*time.Minute).WithPolling(pollInterval).Should(BeTrue(), "TLS cert change never took effect")
+	})
+
+})
+
+var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
+	var k8s *openshift.Client
+	ginkgo.It("can be upgraded", func(ctx context.Context) {
+		log.SetLogger(ginkgo.GinkgoLogr)
+		var err error
+		k8s, err = openshift.New(ginkgo.GinkgoLogr)
+		Expect(err).NotTo(HaveOccurred(), "Error creating openshift client")
+		err = k8s.UpgradeOperator(ctx, config.OperatorName, config.OperatorNamespace)
+		Expect(err).NotTo(HaveOccurred(), "Operator upgrade failed")
 	})
 })
 
