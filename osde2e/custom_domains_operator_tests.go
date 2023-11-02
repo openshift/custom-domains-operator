@@ -86,8 +86,8 @@ var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 	// BeforeEach initializes a CustomDomain for testing
 	ginkgo.BeforeEach(func(ctx context.Context) {
 		specSuffix := strconv.FormatInt(time.Now().UTC().UnixNano(), 10)
-		testNamespaceName = "osde2e-" + specSuffix
-		testCustomDomainCRName = "osde2e-" + specSuffix
+		testNamespaceName = "osde2e-cdo-" + specSuffix
+		testCustomDomainCRName = "osde2e-cdo-" + specSuffix
 		testDomainName = fmt.Sprintf("%s.io", testCustomDomainCRName)
 		testSecretName = testCustomDomainCRName + "-secret"
 
@@ -131,7 +131,7 @@ var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 			return false
 		}).WithTimeout(5*time.Minute).WithPolling(pollInterval).Should(BeTrue(), "Endpoint never became ready")
 
-		ginkgo.DeferCleanup(func() {
+		ginkgo.DeferCleanup(func(ctx context.Context) {
 			ginkgo.By("Cleaning up setup")
 			Expect(k8s.Delete(ctx, testCustomDomain)).Should(Succeed(), "Failed to delete CustomDomain")
 			Expect(k8s.Delete(ctx, testCustomDomainSecret)).Should(Succeed(), "Failed to delete secret")
