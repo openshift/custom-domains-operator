@@ -142,13 +142,16 @@ func (r *CustomDomainReconciler) returnIngressToClusterIngressOperator(reqLogger
 
 	delete(customIngress.Labels, managedLabelName)
 	customIngress.Spec.NodePlacement = &operatorv1.NodePlacement{
-		NodeSelector: &metav1.LabelSelector{
-			MatchLabels: map[string]string{"node-role.kubernetes.io/worker": ""},
+		Tolerations: []corev1.Toleration{
+			{
+				Key:      "node-role.kubernetes.io/infra",
+				Effect:   corev1.TaintEffectNoSchedule,
+				Operator: corev1.TolerationOpExists,
+			},
 		},
-		Tolerations: []corev1.Toleration{},
 	}
 
-	reqLogger.Info(fmt.Sprintf("Updating ingress %s with new node placement on worker node, removing tolerations for infra nodes", instance.Name))
+	reqLogger.Info(fmt.Sprintf("Updating ingress %s to remove exclusive infra node placement", instance.Name))
 	err = r.Client.Update(context.TODO(), customIngress)
 	if err != nil {
 		reqLogger.Error(err, fmt.Sprintf("Error updating ingresscontroller %s in %s namespace", ingressName, ingressOperatorNamespace))
