@@ -18,7 +18,7 @@ graph LR
 ```
 ### Deprecation
 On versions of Managed Openshift (OSD/ROSA) greater than version 4.14 (or version 4.13 if the =ext-managed.openshift.io/legacy-ingress-support= flag is switched on for the cluster) the Custom Domains Operator will no longer reconcile new `CustomDomain` objects. Existing `CustomDomain`
- objects will be converted to native Openshift `IngressController` resources, and their `HAProxy` workloads rescheduled onto customer worker nodes. Consult https://access.redhat.com/articles/7028653 for further information.
+ objects will be converted to native Openshift `IngressController` resources, and their `HAProxy` workloads allowed to be scheduled onto customer worker nodes. Consult https://access.redhat.com/articles/7028653 for further information.
 ### Prerequisites
 
 - Go 1.19+

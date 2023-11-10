@@ -968,12 +968,8 @@ func TestCustomDomainController(t *testing.T) {
 		Namespace: userNamespace,
 	}, validSecret)
 
-	workerNodeSelector := &metav1.LabelSelector{
-		MatchLabels: map[string]string{"node-role.kubernetes.io/worker": ""},
-	}
-
-	if len(ing.Spec.NodePlacement.Tolerations) != 0 && !reflect.DeepEqual(ing.Spec.NodePlacement.NodeSelector, workerNodeSelector) {
-		t.Error("reconcile did not reschedule ingress on worker nodes")
+	if ing.Spec.NodePlacement.NodeSelector != nil {
+		t.Error("reconcile did not remove infra node selector")
 	}
 
 	if _, ok := ing.Labels[managedLabelName]; ok {
