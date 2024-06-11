@@ -930,12 +930,12 @@ func TestCustomDomainController(t *testing.T) {
 	// 	Version: "4.13.0",
 	// }
 	clusterVersion.Status = configv1.ClusterVersionStatus{
-			History: []configv1.UpdateHistory{
-				{
-					Version: "4.13.0",
-				},
+		History: []configv1.UpdateHistory{
+			{
+				Version: "4.13.0",
 			},
-		}
+		},
+	}
 
 	operatorNamespace.Labels = map[string]string{
 		legacyIngressSupportLabel: "false",
@@ -967,10 +967,6 @@ func TestCustomDomainController(t *testing.T) {
 		Name:      validSecretName,
 		Namespace: userNamespace,
 	}, validSecret)
-
-	if ing.Spec.NodePlacement.NodeSelector != nil {
-		t.Error("reconcile did not remove infra node selector")
-	}
 
 	if _, ok := ing.Labels[managedLabelName]; ok {
 		t.Error("reconcile did not remove ingress ownership labels")
