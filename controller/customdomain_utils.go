@@ -170,7 +170,7 @@ func (r *CustomDomainReconciler) returnIngressToClusterIngressOperator(reqLogger
 	SetCustomDomainStatus(
 		reqLogger,
 		instance,
-		"Due to the deprecation of the custom domains operator on OSD/ROSA version 4.13 and above, this CustomDomain no longer manages an IngressController.",
+		"Due to the deprecation of the custom domains operator on OSD/ROSA version 4.13 and above, this CustomDomain no longer manages an IngressController. See https://access.redhat.com/solutions/7051895 for more information on how this affects your Custom Domain resources.",
 		customdomainv1alpha1.CustomDomainConditionDeprecated,
 		customdomainv1alpha1.CustomDomainStateNotReady)
 	err = r.statusUpdate(reqLogger, instance)
