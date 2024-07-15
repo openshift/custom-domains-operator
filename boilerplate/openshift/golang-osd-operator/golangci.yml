@@ -16,13 +16,18 @@ issues:
 linters:
   disable-all: true
   enable:
-  - deadcode
   - errcheck
+  - gosec
   - gosimple
   - govet
   - ineffassign
+  - misspell
   - staticcheck
-  - structcheck
   - typecheck
   - unused
-  - varcheck
+
+linters-settings:
+  misspell:
+    extra-words:
+      - typo: "openshit"
+        correction: "OpenShift"

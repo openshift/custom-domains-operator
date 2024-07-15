@@ -24,7 +24,7 @@ Failed to determine consumer name"
 #
 # E.g. "master"
 # This will produce something like refs/remotes/origin/master
-DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/upstream/HEAD || git symbolic-ref refs/remotes/origin/HEAD || echo defaulting/to/master)
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/upstream/HEAD 2>/dev/null || git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || echo defaulting/to/master)
 # Strip off refs/remotes/{upstream|origin}/
 DEFAULT_BRANCH=${DEFAULT_BRANCH##*/}
 [[ -z "$DEFAULT_BRANCH" ]] && err "
@@ -97,7 +97,7 @@ release_prep_clone() {
     # If a release repo clone wasn't specified, create one
     if [[ -z "$RELEASE_CLONE" ]]; then
         RELEASE_CLONE=$(mktemp -dt openshift_release_XXXXXXX)
-        git clone git@github.com:${RELEASE_REPO}.git $RELEASE_CLONE
+        git clone --depth=1 git@github.com:${RELEASE_REPO}.git $RELEASE_CLONE
     else
         [[ -z "$(git -C $RELEASE_CLONE status --porcelain)" ]] || err "
 Your release clone must start clean."

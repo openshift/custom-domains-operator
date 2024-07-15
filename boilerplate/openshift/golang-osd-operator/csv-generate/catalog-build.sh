@@ -23,13 +23,20 @@ while getopts "o:c:r:" option; do
     esac
 done
 
+# Detect the container engine to use, allowing override from the env
+CONTAINER_ENGINE=${CONTAINER_ENGINE:-$(command -v podman || command -v docker || true)}
+if [[ -z "$CONTAINER_ENGINE" ]]; then
+    echo "WARNING: Couldn't find a container engine! Defaulting to docker."
+    CONTAINER_ENGINE=docker
+fi
+
 # Checking parameters
 check_mandatory_params operator_channel operator_name
 
 # Parameters for the Dockerfile
 SAAS_OPERATOR_DIR="saas-${operator_name}-bundle"
 BUNDLE_DIR="${SAAS_OPERATOR_DIR}/${operator_name}"
-DOCKERFILE_REGISTRY="Dockerfile.olm-registry"
+DOCKERFILE_REGISTRY="build/Dockerfile.olm-registry"
 
 # Checking SAAS_OPERATOR_DIR exist
 if [ ! -d "${SAAS_OPERATOR_DIR}/.git" ] ; then
@@ -54,15 +61,12 @@ channels:
   currentCSV: ${operator_name}.v${OPERATOR_NEW_VERSION}
 EOF
 
-# Build registry
-cat <<EOF > $DOCKERFILE_REGISTRY
-FROM quay.io/openshift/origin-operator-registry:4.7.0
-COPY $SAAS_OPERATOR_DIR manifests
-RUN initializer --permissive
-CMD ["registry-server", "-t", "/tmp/terminate.log"]
-EOF
+TAG="${operator_channel}-latest"
+if [[ "${RELEASE_BRANCHED_BUILDS}" ]]; then
+    TAG="v${OPERATOR_NEW_VERSION}"
+fi
 
-docker build -f $DOCKERFILE_REGISTRY --tag "${registry_image}:${operator_channel}-latest" .
+${CONTAINER_ENGINE} build --pull -f "${DOCKERFILE_REGISTRY}" --build-arg "SAAS_OPERATOR_DIR=${SAAS_OPERATOR_DIR}" --tag "${registry_image}:${TAG}" .
 
 if [ $? -ne 0 ] ; then
     echo "docker build failed, exiting..."

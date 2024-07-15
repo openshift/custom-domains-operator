@@ -41,6 +41,17 @@ BUNDLE_DIR="${SAAS_OPERATOR_DIR}/${operator_name}"
 OPERATOR_NEW_VERSION=$(ls "${BUNDLE_DIR}" | sort -t . -k 3 -g | tail -n 1)
 OPERATOR_PREV_VERSION=$(ls "${BUNDLE_DIR}" | sort -t . -k 3 -g | tail -n 2 | head -n 1)
 
+# Get container engine
+CONTAINER_ENGINE=$(command -v podman || command -v docker || true)
+[[ -n "$CONTAINER_ENGINE" ]] || echo "WARNING: Couldn't find a container engine. Assuming you already in a container, running unit tests." >&2
+
+# Set SRC container transport based on container engine
+if [[ "${CONTAINER_ENGINE##*/}" == "podman" ]]; then
+    SRC_CONTAINER_TRANSPORT="containers-storage"
+else
+    SRC_CONTAINER_TRANSPORT="docker-daemon"
+fi
+
 # Checking SAAS_OPERATOR_DIR exist
 if [ ! -d "${SAAS_OPERATOR_DIR}/.git" ] ; then
     echo "${SAAS_OPERATOR_DIR} should exist and be a git repository"
@@ -73,7 +84,7 @@ replaces ${OPERATOR_PREV_VERSION}
 removed versions: ${REMOVED_VERSIONS}"
 
 git commit -m "${MESSAGE}"
-git push origin "${operator_channel}"
+git push origin HEAD
 
 if [ $? -ne 0 ] ; then
     echo "git push failed, exiting..."
@@ -84,8 +95,21 @@ popd
 
 if [ "$push_catalog" = true ] ; then
     # push image
+    if [[ "${RELEASE_BRANCHED_BUILDS}" ]]; then
+      skopeo copy --dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
+          "${SRC_CONTAINER_TRANSPORT}:${registry_image}:v${OPERATOR_NEW_VERSION}" \
+          "docker://${registry_image}:v${OPERATOR_NEW_VERSION}"
+
+      if [ $? -ne 0 ] ; then
+          echo "skopeo push of ${registry_image}:v${OPERATOR_NEW_VERSION}-latest failed, exiting..."
+          exit 1
+      fi
+
+      exit 0
+    fi
+
     skopeo copy --dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
-        "docker-daemon:${registry_image}:${operator_channel}-latest" \
+        "${SRC_CONTAINER_TRANSPORT}:${registry_image}:${operator_channel}-latest" \
         "docker://${registry_image}:${operator_channel}-latest"
 
     if [ $? -ne 0 ] ; then
@@ -94,7 +118,7 @@ if [ "$push_catalog" = true ] ; then
     fi
 
     skopeo copy --dest-creds "${QUAY_USER}:${QUAY_TOKEN}" \
-        "docker-daemon:${registry_image}:${operator_channel}-latest" \
+        "${SRC_CONTAINER_TRANSPORT}:${registry_image}:${operator_channel}-latest" \
         "docker://${registry_image}:${operator_channel}-${operator_commit_hash}"
 
     if [ $? -ne 0 ] ; then
