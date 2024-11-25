@@ -6,4 +6,6 @@ const (
 
 	// OperatorNamespace
 	OperatorNamespace string = "openshift-custom-domains-operator"
+
+	EnableOLMSkipRange = "true"
 )
