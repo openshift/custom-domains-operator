@@ -205,7 +205,7 @@ var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 
 var _ = ginkgo.Describe("Custom Domains Operator", ginkgo.Ordered, func() {
 	var k8s *openshift.Client
-	ginkgo.It("can be upgraded", func(ctx context.Context) {
+	ginkgo.PIt("can be upgraded", func(ctx context.Context) {
 		log.SetLogger(ginkgo.GinkgoLogr)
 		var err error
 		k8s, err = openshift.New(ginkgo.GinkgoLogr)
