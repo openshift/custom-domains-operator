@@ -22,10 +22,9 @@ const (
 func TestCustomDomainsOperator(t *testing.T) {
 	RegisterFailHandler(Fail)
 	suiteConfig, reporterConfig := GinkgoConfiguration()
- 	if _, ok := os.LookupEnv("DISABLE_JUNIT_REPORT"); !ok {
+	if _, ok := os.LookupEnv("DISABLE_JUNIT_REPORT"); !ok {
 		reporterConfig.JUnitReport = filepath.Join(testResultsDirectory, jUnitOutputFilename)
 	}
 	RunSpecs(t, "Custom Domains Operator", suiteConfig, reporterConfig)
 
 }
-
