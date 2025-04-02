@@ -3,7 +3,6 @@ package managed
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -699,7 +698,7 @@ func TestCustomDomainController(t *testing.T) {
 		t.Fatalf("get secret: (%v)", err)
 	}
 	if !reflect.DeepEqual(actualIngressSecret.Data, userSecret.Data) {
-		t.Errorf(fmt.Sprintf("secret mismatch: (%s)", actualIngressSecret.Name))
+		t.Errorf("secret mismatch: (%s)", actualIngressSecret.Name)
 	}
 
 	// check actual ingresscontrollers.operator.openshift.io/default
@@ -712,10 +711,10 @@ func TestCustomDomainController(t *testing.T) {
 		t.Fatalf("get ingress: (%v)", err)
 	}
 	if actualCustomIngress.Spec.Domain != instanceName+"."+clusterDomain {
-		t.Errorf(fmt.Sprintf("CRD ingresscontrollers.operator.openshift.io/default domain mismatch: (%v)", actualCustomIngress.Spec.Domain))
+		t.Errorf("CRD ingresscontrollers.operator.openshift.io/default domain mismatch: (%v)", actualCustomIngress.Spec.Domain)
 	}
 	if string(actualCustomIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope) != instanceScope {
-		t.Errorf(fmt.Sprintf("CRD ingresscontrollers.operator.openshift.io/default scope mismatch: (%v)", actualCustomIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope))
+		t.Errorf("CRD ingresscontrollers.operator.openshift.io/default scope mismatch: (%v)", actualCustomIngress.Spec.EndpointPublishingStrategy.LoadBalancer.Scope)
 	}
 
 	// check instance
@@ -730,7 +729,7 @@ func TestCustomDomainController(t *testing.T) {
 
 	// check for ready status
 	if actualCustomDomain.Status.State != customdomainv1alpha1.CustomDomainStateReady {
-		t.Errorf(fmt.Sprintf("Status.State does not equal (%s)", string(customdomainv1alpha1.CustomDomainStateReady)))
+		t.Errorf("Status.State does not equal (%s)", string(customdomainv1alpha1.CustomDomainStateReady))
 	}
 
 	// Check scope immutability
