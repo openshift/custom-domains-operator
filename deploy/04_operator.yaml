@@ -29,6 +29,10 @@ spec:
       containers:
         - name: custom-domains-operator
           image: REPLACE_ME/custom-domains-operator:latest
+          resources:
+            limits:
+              cpu: "100m"
+              memory: "1Gi"
           command:
           - custom-domains-operator
           args:
