@@ -28,6 +28,7 @@ objects:
       matchLabels:
         api.openshift.com/managed: 'true'
     resourceApplyMode: Sync
+    applyBehavior: CreateOrUpdate
     resources:
     - kind: Namespace
       apiVersion: v1
@@ -82,6 +83,7 @@ objects:
       spec:
         targetNamespaces:
         - openshift-custom-domains-operator
+        upgradeStrategy: TechPreviewUnsafeFailForward 
 - apiVersion: hive.openshift.io/v1
   kind: SelectorSyncSet
   metadata:
