@@ -1,9 +1,11 @@
 reviewers:
+- srep-functional-team-aurora
 - dustman9000
 - jharrington22
 - tnierman
 - aliceh
 approvers:
+- srep-functional-team-aurora
 - dustman9000
 - jharrington22
 - tnierman
