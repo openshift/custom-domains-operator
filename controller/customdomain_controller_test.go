@@ -800,7 +800,7 @@ func TestCustomDomainController(t *testing.T) {
 	now := metav1.NewTime(time.Now())
 	for _, n := range restrictedIngressNames {
 		customdomain.Name = n
-		req.NamespacedName.Name = n
+		req.Name = n
 		err = r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      customdomain.Name,
 			Namespace: customdomain.Namespace,
@@ -837,7 +837,7 @@ func TestCustomDomainController(t *testing.T) {
 	// deletion with restricted object names
 	for _, n := range invalidObjectNames {
 		customdomain.Name = n
-		req.NamespacedName.Name = n
+		req.Name = n
 		err = r.Client.Get(context.TODO(), types.NamespacedName{
 			Name:      customdomain.Name,
 			Namespace: customdomain.Namespace,
@@ -873,7 +873,7 @@ func TestCustomDomainController(t *testing.T) {
 
 	// simulate deletion of customdomain
 	customdomain.Name = instanceName
-	req.NamespacedName.Name = instanceName
+	req.Name = instanceName
 	err = r.Client.Get(context.TODO(), types.NamespacedName{
 		Name:      customdomain.Name,
 		Namespace: customdomain.Namespace,
