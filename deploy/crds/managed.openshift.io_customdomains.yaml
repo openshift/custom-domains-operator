@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.15.0
+    controller-gen.kubebuilder.io/version: v0.16.4
   name: customdomains.managed.openshift.io
 spec:
   group: managed.openshift.io
@@ -77,12 +77,9 @@ spec:
                 description: |-
                   This field is used to specify the type of AWS load balancer.
 
-
                   Valid values are:
 
-
                   * "Classic": A Classic Load Balancer that makes routing decisions at either the transport layer (TCP/SSL) or the application layer (HTTP/HTTPS). See the following for additional details: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-types.html#clb
-
 
                   * "NLB": A Network Load Balancer that makes routing decisions at the transport layer (TCP/SSL). See the following for additional details: https://docs.aws.amazon.com/AmazonECS/latest/developerguide/load-balancer-types.html#nlb
                 type: string
@@ -90,7 +87,6 @@ spec:
                 description: |-
                   This field is used to filter the set of namespaces serviced by the
                   CustomDomain ingress. This is useful for implementing shards.
-
 
                   If unset, the default is no filtering.
                 properties:
@@ -139,7 +135,6 @@ spec:
                 description: |-
                   This field is used to filter the set of Routes serviced by the ingress
                   controller. This is useful for implementing shards.
-
 
                   If unset, the default is no filtering.
                 properties:

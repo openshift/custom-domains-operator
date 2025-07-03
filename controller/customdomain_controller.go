@@ -95,7 +95,6 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 		return reconcile.Result{}, err
 	}
 
-
 	// Check if the CustomDomain instance is marked to be deleted, which is
 	// indicated by the deletion timestamp being set.
 	isCustomDomainMarkedToBeDeleted := instance.GetDeletionTimestamp() != nil
@@ -359,10 +358,13 @@ func (r *CustomDomainReconciler) Reconcile(ctx context.Context, request ctrl.Req
 				if err != nil {
 					return reconcile.Result{}, fmt.Errorf("failed to determine platform type: %w", err)
 				}
-				if *platform == "AWS" {
+				switch *platform {
+				case "AWS":
 					r.setAWSProviderParameters(*instance, customIngress)
-				} else if *platform == "GCP" {
+				case "GCP":
 					r.setGCPProviderParameters(*instance, customIngress)
+				default:
+					return reconcile.Result{}, fmt.Errorf("unknown platform: %s", *platform)
 				}
 			}
 		}
