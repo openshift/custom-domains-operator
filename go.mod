@@ -9,7 +9,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.9.5
 	github.com/onsi/gomega v1.27.7
 	// go get -u github.com/openshift/api@release-4.11
-	github.com/openshift/api v0.0.0-20221013123534-96eec44e1979
+	github.com/openshift/api 92b1455121e1
 	github.com/openshift/osde2e-common v0.0.0-20230828192052-1b1a774e2df6
 	k8s.io/api v0.27.8
 	k8s.io/apimachinery v0.27.8
