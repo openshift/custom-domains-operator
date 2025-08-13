@@ -1,5 +1,5 @@
-KONFLUX_BUILDS=true
 FIPS_ENABLED=true
+KONFLUX_BUILDS=true
 include boilerplate/generated-includes.mk
 
 .PHONY: boilerplate-update
