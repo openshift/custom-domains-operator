@@ -26,13 +26,22 @@ objects:
         managed.openshift.io/gitHash: ${IMAGE_TAG}
         managed.openshift.io/gitRepoName: ${REPO_NAME}
         managed.openshift.io/osd: "true"
-      name: custom-domains-operator-stage
+      name: custom-domains-operator-pko
     spec:
       clusterDeploymentSelector:
         matchLabels:
           api.openshift.com/managed: "true"
       resourceApplyMode: Sync
       resources:
+        - apiVersion: v1
+          kind: Namespace
+          metadata:
+            labels:
+              openshift.io/cluster-monitoring: 'true'
+              pod-security.kubernetes.io/enforce: 'baseline'
+              pod-security.kubernetes.io/audit: 'baseline'
+              pod-security.kubernetes.io/warn: 'baseline'
+            name: ${NAMESPACE}
         - apiVersion: package-operator.run/v1alpha1
           kind: ClusterPackage
           metadata:
