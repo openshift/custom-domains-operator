@@ -31,7 +31,7 @@ objects:
       clusterDeploymentSelector:
         matchLabels:
           api.openshift.com/managed: "true"
-      resourceApplyMode: Sync
+      resourceApplyMode: Upsert
       resources:
         - apiVersion: v1
           kind: Namespace
@@ -76,4 +76,4 @@ objects:
         patch: >
           {"metadata": {"labels": {"ext-managed.openshift.io/legacy-ingress-support": "false"}}}
         patchType: merge
-      resourceApplyMode: Sync
+      resourceApplyMode: Upsert
