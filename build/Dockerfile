@@ -12,7 +12,7 @@ COPY . /src
 
 RUN make gobuild
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1776104705
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1776833838
 ENV OPERATOR=/usr/local/bin/custom-domains-operator \
     USER_UID=1001 \
     USER_NAME=custom-domains-operator
