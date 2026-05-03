@@ -39,6 +39,7 @@ spec:
             - "--zap-log-level=debug"
             - "--zap-encoder=console"
           imagePullPolicy: Always
+          terminationMessagePolicy: FallbackToLogsOnError
           env:
             - name: WATCH_NAMESPACE
               value: ""
