@@ -57,3 +57,4 @@ oc set image -n openshift-custom-domains-operator deployment/custom-domains-oper
 
 ## Testing
 See [TESTING](TESTING.md)
+
