@@ -1,4 +1,4 @@
-FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v8.3.5 AS builder
+FROM quay.io/redhat-services-prod/openshift/boilerplate:image-v8.3.6 AS builder
 
 RUN mkdir /src
 
@@ -12,7 +12,7 @@ COPY . /src
 
 RUN make gobuild
 
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1776833838
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.7-1778461551
 ENV OPERATOR=/usr/local/bin/custom-domains-operator \
     USER_UID=1001 \
     USER_NAME=custom-domains-operator
