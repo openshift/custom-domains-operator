@@ -2,7 +2,7 @@ module github.com/openshift/custom-domains-operator
 
 go 1.23.0
 
-toolchain go1.23.8
+toolchain go1.26.3
 
 require (
 	github.com/go-logr/logr v1.2.4
