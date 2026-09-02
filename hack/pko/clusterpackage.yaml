@@ -31,6 +31,7 @@ objects:
       clusterDeploymentSelector:
         matchLabels:
           api.openshift.com/managed: "true"
+          custom-domains-operator/keep: "true"
       resourceApplyMode: Sync
       resources:
         - apiVersion: v1
@@ -64,6 +65,7 @@ objects:
       clusterDeploymentSelector:
         matchLabels:
           api.openshift.com/managed: 'true'
+          custom-domains-operator/keep: 'true'
         matchExpressions:
         - key: ext-managed.openshift.io/legacy-ingress-support
           operator: In
