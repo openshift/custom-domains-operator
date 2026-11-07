@@ -1,14 +1,13 @@
 reviewers:
-- srep-functional-team-aurora
+- rosa-trust-engineering-access-tooling
+- rosa-trust-engineering-observability
 - dustman9000
-- jharrington22
-- tnierman
 - aliceh
 approvers:
-- srep-functional-team-aurora
+- rosa-trust-engineering-access-tooling
+- rosa-trust-engineering-observability
 - dustman9000
-- jharrington22
-- tnierman
 maintainers:
+- rosa-trust-engineering-access-tooling
+- rosa-trust-engineering-observability
 - dustman9000
-- jharrington22
